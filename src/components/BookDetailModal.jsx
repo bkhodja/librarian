@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import StatusNote, { useStatus } from './StatusNote';
+import AskBook from './AskBook';
 import ReadingProgress from './ReadingProgress';
 
 function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollectionChange }) {
@@ -483,6 +484,8 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
                 )}
               </div>
             )}
+
+            <AskBook book={book} />
 
             {/* AI Summary */}
             <div className="pt-2">
