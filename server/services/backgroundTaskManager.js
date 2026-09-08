@@ -6,12 +6,14 @@ const epubProcessor = require('./epubProcessorImproved'); // Use improved proces
 const processorPool = require('./bookProcessorPool');
 const metadataEnricher = require('./bookMetadataEnricher');
 const quality = require('./metadataQuality');
+const aiTagger = require('./aiTagger');
 
 const THUMBNAIL_BATCH_SIZE = Number(process.env.THUMBNAIL_BATCH_SIZE) || 25;
 const THUMBNAIL_CONCURRENCY = Number(process.env.THUMBNAIL_CONCURRENCY) || 3;
 const PROCESS_CONCURRENCY = Number(process.env.PROCESSOR_WORKERS) || 2;
 const ENRICH_BATCH_SIZE = Number(process.env.ENRICH_BATCH_SIZE) || 25;
 const ENRICH_DELAY_MS = Number(process.env.ENRICH_DELAY_MS) || 1000;
+const TAG_BATCH_SIZE = Number(process.env.TAG_BATCH_SIZE) || 20;
 const thumbnailGenerator = require('./thumbnailGeneratorPdf2pic');
 const EventEmitter = require('events');
 
@@ -24,6 +26,8 @@ class BackgroundTaskManager extends EventEmitter {
     this.activeJobs = 0;
     this.isGeneratingThumbnails = false;
     this.isEnriching = false;
+    this.isTagging = false;
+    this.warnedNoOllama = false;
     // Books tried this run, so a lookup that finds nothing is not repeated
     // every five minutes. Cleared on restart, which retries after an outage.
     this.enrichAttempted = new Set();
@@ -254,6 +258,13 @@ class BackgroundTaskManager extends EventEmitter {
 
     // Start one pass shortly after boot rather than waiting out the interval.
     setTimeout(() => this.enrichPoorMetadata(), 15000);
+
+    // Subject-tag whatever is still untagged, using the local model.
+    this.tagInterval = setInterval(() => {
+      this.tagUntaggedBooks();
+    }, 120000);
+
+    setTimeout(() => this.tagUntaggedBooks(), 30000);
   }
 
   /**
@@ -303,6 +314,50 @@ class BackgroundTaskManager extends EventEmitter {
       console.error('Metadata enrichment pass failed:', error.message);
     } finally {
       this.isEnriching = false;
+    this.isTagging = false;
+    this.warnedNoOllama = false;
+    }
+  }
+
+  /**
+   * Tag untagged books with the local model. Runs on a loop until the library
+   * is covered, then goes quiet: once every book has tags the query returns
+   * nothing and the pass costs one count.
+   */
+  async tagUntaggedBooks() {
+    if (this.isTagging) return;
+    this.isTagging = true;
+
+    try {
+      const remaining = aiTagger.countUntagged();
+      if (remaining === 0) return;
+
+      const status = await aiTagger.status();
+      if (!status.available) {
+        // Ollama is not running. Say so once rather than on every pass.
+        if (!this.warnedNoOllama) {
+          console.warn('🏷️  Local tagging is idle: Ollama is not reachable at ' +
+                       `${status.host}. Start it to tag ${remaining} book(s).`);
+          this.warnedNoOllama = true;
+        }
+        return;
+      }
+      this.warnedNoOllama = false;
+
+      console.log(`🏷️  Tagging ${Math.min(TAG_BATCH_SIZE, remaining)} of ${remaining} untagged book(s) with ${status.model}`);
+
+      const result = await aiTagger.tagUntagged(TAG_BATCH_SIZE);
+      console.log(`   tagged ${result.tagged}, skipped ${result.skipped} ` +
+                  `(${result.bySource.ai} by model, ${result.bySource.keywords} by keywords)`);
+
+      // Keep going while there is work, rather than waiting out the interval.
+      if (aiTagger.countUntagged() > 0) {
+        setTimeout(() => this.tagUntaggedBooks(), 1000);
+      }
+    } catch (error) {
+      console.error('Tagging pass failed:', error.message);
+    } finally {
+      this.isTagging = false;
     }
   }
 
@@ -524,6 +579,7 @@ class BackgroundTaskManager extends EventEmitter {
     if (this.processInterval) clearInterval(this.processInterval);
     if (this.thumbnailInterval) clearInterval(this.thumbnailInterval);
     if (this.enrichInterval) clearInterval(this.enrichInterval);
+    if (this.tagInterval) clearInterval(this.tagInterval);
 
     await processorPool.shutdown();
 
