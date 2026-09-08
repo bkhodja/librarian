@@ -4,6 +4,7 @@ const fs = require('fs').promises;
 const properPdfExtractor = require('./properPdfExtractor');
 const path = require('path');
 const epubPageExtractor = require('./epubPageExtractor');
+const pdfOcrExtractor = require('./pdfOcrExtractor');
 
 class EnhancedSearchService {
   constructor() {
@@ -85,15 +86,36 @@ class EnhancedSearchService {
        * citation, but not something the ePUB reader can jump to.
        */
       const isEpub = path.extname(book.file_path || '').toLowerCase() === '.epub';
+      const isScanned = !isEpub && book.pdf_type === 'scanned';
 
-      const extractionResult = isEpub
-        ? await epubPageExtractor.extractPages(book.file_path)
-        : await properPdfExtractor.extractPages(book.file_path, { verbose: false });
+      let extractionResult;
+      let source;
+
+      if (isEpub) {
+        source = 'ePUB';
+        extractionResult = await epubPageExtractor.extractPages(book.file_path);
+      } else if (isScanned) {
+        // No text layer to read, so the pages are rendered and recognised.
+        // Far slower than the others — seconds a page rather than milliseconds.
+        source = 'OCR';
+        extractionResult = await pdfOcrExtractor.extractPages(book.file_path, {
+          pageCount: book.page_count,
+          language: book.language,
+          // A long scan is minutes of silence otherwise, which is
+          // indistinguishable from a hang.
+          onProgress: ({ done, total }) => {
+            if (done % 40 === 0 || done === total) {
+              process.stdout.write(`   OCR ${done}/${total} pages\r`);
+            }
+          }
+        });
+      } else {
+        source = 'PDF';
+        extractionResult = await properPdfExtractor.extractPages(book.file_path, { verbose: false });
+      }
 
       if (!extractionResult.success) {
-        throw new Error(
-          `${isEpub ? 'ePUB' : 'PDF'} extraction failed: ${extractionResult.error}`
-        );
+        throw new Error(`${source} extraction failed: ${extractionResult.error}`);
       }
 
       const pages = extractionResult.pages;
@@ -123,9 +145,21 @@ class EnhancedSearchService {
         }
       }
 
+      if (isScanned) {
+        db.prepare(`
+          UPDATE books
+          SET ocr_status = 'completed',
+              ocr_confidence = ?,
+              ocr_processed = 1,
+              ocr_processed_at = datetime('now')
+          WHERE id = ?
+        `).run(extractionResult.confidence ?? null, bookId);
+      }
+
       db.exec('COMMIT');
 
-      console.log(`✅ Indexed ${pages.length} pages (${totalWords} words)`);
+      console.log(`✅ Indexed ${pages.length} pages (${totalWords} words)` +
+        (isScanned ? ` via OCR, ${Math.round(extractionResult.confidence)}% confidence, ${extractionResult.languages}` : ''));
 
       return {
         success: true,

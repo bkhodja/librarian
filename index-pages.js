@@ -9,8 +9,12 @@ async function indexPages() {
   console.log('='.repeat(80) + '\n');
 
   const args = process.argv.slice(2);
-  const bookId = args[0] ? parseInt(args[0]) : null;
-  const limit = args[1] ? parseInt(args[1]) : 10;
+  // OCR is opt-in: it is seconds a page rather than milliseconds, so a plain
+  // run should not silently turn into a half-hour job.
+  const withOcr = args.includes('--ocr');
+  const positional = args.filter((a) => !a.startsWith('--'));
+  const bookId = positional[0] ? parseInt(positional[0]) : null;
+  const limit = positional[1] ? parseInt(positional[1]) : 10;
 
   // Get current stats
   const stats = enhancedSearch.getIndexStats();
@@ -46,6 +50,7 @@ async function indexPages() {
         AND (
           b.pdf_type IN ('searchable', 'mixed')
           OR lower(b.file_path) LIKE '%.epub'
+          ${withOcr ? "OR b.pdf_type = 'scanned'" : ''}
         )
       LIMIT ?
     `).all(limit);
