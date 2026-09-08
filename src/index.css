@@ -2,44 +2,113 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Custom global styles */
+/*
+ * Theme tokens. Light mode is a warm paper neutral rather than pure white, so
+ * book covers — which supply nearly all the colour in this UI — sit on it
+ * without glaring. Dark mode is a cool slate at a matching contrast step.
+ * Values are space-separated RGB channels for Tailwind's <alpha-value>.
+ */
+:root {
+  --canvas: 246 245 243;
+  --surface: 255 255 255;
+  --surface-hover: 250 249 247;
+  --surface-sunken: 240 239 236;
+  --hairline: 226 223 218;
+
+  --ink: 28 27 26;
+  --ink-muted: 99 96 92;
+  --ink-faint: 148 144 139;
+
+  --accent: 79 70 229;
+  --accent-hover: 67 56 202;
+  --accent-soft: 238 238 253;
+  --accent-ink: 67 56 202;
+}
+
+.dark {
+  --canvas: 17 19 23;
+  --surface: 26 29 35;
+  --surface-hover: 33 37 44;
+  --surface-sunken: 21 24 29;
+  --hairline: 45 50 59;
+
+  --ink: 237 238 240;
+  --ink-muted: 158 163 172;
+  --ink-faint: 113 118 128;
+
+  --accent: 129 122 245;
+  --accent-hover: 145 139 248;
+  --accent-soft: 38 36 66;
+  --accent-ink: 179 174 250;
+}
+
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
-/* Line clamp utility */
-.line-clamp-2 {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+html {
+  color-scheme: light;
+}
+
+.dark html,
+html.dark {
+  color-scheme: dark;
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  font-family: theme('fontFamily.sans');
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background-color: rgb(var(--canvas));
+  color: rgb(var(--ink));
 }
 
-/* Custom scrollbar styles */
+/* Line clamping */
+.line-clamp-1,
+.line-clamp-2,
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.line-clamp-1 { -webkit-line-clamp: 1; }
+.line-clamp-2 { -webkit-line-clamp: 2; }
+.line-clamp-3 { -webkit-line-clamp: 3; }
+
+/* Form controls inherit the theme instead of the browser's default chrome. */
+select,
+input,
+button {
+  font: inherit;
+  color: inherit;
+}
+
+/* Scrollbars follow the theme; the old fixed grey was invisible in dark mode. */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #888;
-  border-radius: 4px;
+  background: rgb(var(--ink-faint) / 0.35);
+  border: 2px solid transparent;
+  background-clip: content-box;
+  border-radius: 6px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #555;
+  background: rgb(var(--ink-faint) / 0.6);
+  background-clip: content-box;
+}
+
+/* Consistent focus treatment across the app. */
+:focus-visible {
+  outline: 2px solid rgb(var(--accent));
+  outline-offset: 2px;
 }
