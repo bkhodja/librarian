@@ -15,6 +15,7 @@ const fsp = require('fs').promises;
 const os = require('os');
 const path = require('path');
 const { pdfToPng } = require('pdf-to-png-converter');
+const { fromPath } = require('pdf2pic');
 const Tesseract = require('tesseract.js');
 
 const LANGUAGES = process.env.OCR_LANGUAGE || 'rus+eng';
@@ -30,7 +31,54 @@ const SCALE = Number(process.env.OCR_SCALE) || 2.0;
 const MIN_CONFIDENCE = Number(process.env.OCR_MIN_CONFIDENCE) || 40;
 const MIN_WORDS = Number(process.env.OCR_MIN_WORDS) || 5;
 
+// A rendered page smaller than this is blank. pdf.js cannot decode every image
+// encoding a scanner produces — JBIG2 and JPEG 2000 among them — and when it
+// fails it writes a valid but empty PNG of a few kilobytes rather than
+// erroring, so the OCR that follows reads nothing and the book looks like it
+// has no text.
+const BLANK_PAGE_BYTES = Number(process.env.OCR_BLANK_BYTES) || 20 * 1024;
+
 class PdfOcrExtractor {
+  /**
+   * Ghostscript, via pdf2pic. Slower than pdf.js and needs the binary present,
+   * but it decodes the formats pdf.js gives up on. Used only for books whose
+   * pages come back blank.
+   */
+  async renderWithGhostscript(filePath, workDir, numbers) {
+    const convert = fromPath(filePath, {
+      density: 200, savePath: workDir, saveFilename: `gs-${Date.now()}`,
+      format: 'png', width: 1600, height: 2200
+    });
+
+    const images = [];
+    for (const pageNumber of numbers) {
+      try {
+        const result = await convert(pageNumber);
+        if (result?.path) images.push({ path: result.path, pageNumber });
+      } catch (error) {
+        console.error(`  Ghostscript could not render page ${pageNumber}: ${error.message}`);
+      }
+    }
+    return images;
+  }
+
+  /** Does pdf.js produce real pages for this file, or blanks? */
+  async needsGhostscript(filePath, workDir, total) {
+    const probe = Math.max(1, Math.floor(total / 2));
+    try {
+      const [image] = await pdfToPng(filePath, {
+        outputFolder: workDir, viewportScale: SCALE, pagesToProcess: [probe]
+      });
+      if (!image) return true;
+
+      const { size } = await fsp.stat(image.path);
+      await fsp.unlink(image.path).catch(() => {});
+      return size < BLANK_PAGE_BYTES;
+    } catch {
+      return true;
+    }
+  }
+
   /** Recognise one batch of rendered pages across the worker pool. */
   async recognizeBatch(workers, images) {
     const queue = images.slice();
@@ -143,6 +191,11 @@ class PdfOcrExtractor {
         Array.from({ length: WORKERS }, () => Tesseract.createWorker(languages))
       );
 
+      const useGhostscript = await this.needsGhostscript(filePath, workDir, total);
+      if (useGhostscript) {
+        console.log('   pdf.js renders this file blank; falling back to Ghostscript');
+      }
+
       const pages = [];
       for (let start = 1; start <= total; start += RENDER_BATCH) {
         const numbers = [];
@@ -150,11 +203,13 @@ class PdfOcrExtractor {
 
         let images;
         try {
-          images = await pdfToPng(filePath, {
-            outputFolder: workDir,
-            viewportScale: SCALE,
-            pagesToProcess: numbers
-          });
+          images = useGhostscript
+            ? await this.renderWithGhostscript(filePath, workDir, numbers)
+            : await pdfToPng(filePath, {
+                outputFolder: workDir,
+                viewportScale: SCALE,
+                pagesToProcess: numbers
+              });
         } catch (error) {
           console.error(`  Could not render pages ${numbers[0]}-${numbers[numbers.length - 1]}: ${error.message}`);
           continue;
