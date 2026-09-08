@@ -13,6 +13,33 @@ A powerful desktop application for cataloging and managing your personal PDF boo
 - 🔒 **100% Offline** - All data stays on your machine
 - 🆓 **Completely Free** - Open source, no subscriptions or API costs
 
+### Local AI (no API keys, works offline)
+
+Everything AI runs on your own machine through [Ollama](https://ollama.com).
+There is no account, no per-token cost, and nothing leaves the laptop.
+
+- 🏷️ **Automatic tagging** — books are tagged by subject as they arrive, from a
+  controlled vocabulary so the tag filter stays usable
+- 💬 **Ask a book** — questions answered from that book's own pages, with the
+  pages cited, and an honest "not answered by this book" when it isn't
+- 🔎 **Ask the library** — "russian books about business added recently" sets
+  the filters it means, so you can see and adjust the interpretation
+- 📚 **Smart collections** — shelves proposed from what your library actually
+  contains
+- 📝 **Summaries** and **metadata repair** — run-together filenames turned back
+  into titles, missing authors read off the front matter
+- 🧠 **Semantic search** over local embeddings
+
+Setup:
+
+```bash
+brew install ollama && ollama serve
+ollama pull gemma3:4b
+```
+
+Without Ollama the app still runs; AI features report that it is unavailable
+and tagging falls back to keyword matching.
+
 ### Advanced Features (NEW!)
 - 🖼️ **PDF Thumbnails** - Automatic generation of book cover thumbnails from PDF first pages
 - 📖 **Quick Open** - Double-click any book to open it directly in your default PDF reader

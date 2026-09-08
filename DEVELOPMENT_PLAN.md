@@ -4,8 +4,8 @@
 
 **Name:** Librarian
 **Purpose:** Personal book catalog application for macOS
-**Status:** Phase 14 - AI-Powered Summaries Complete
-**Last Updated:** 2026-04-02
+**Status:** Phase 15 - Local AI, and a pass over correctness
+**Last Updated:** 2026-09-08
 
 ### Core Requirements
 
@@ -404,6 +404,62 @@
   - [x] Graceful fallback messaging when no API key
 - [x] **Dependencies**: `@anthropic-ai/sdk` installed
 - [x] **Configuration**: `ANTHROPIC_API_KEY` and `SUMMARY_MODEL` in `.env`
+
+---
+
+### Phase 15: Local AI and Correctness ✅ COMPLETE
+
+Everything AI now runs on the user's own machine through Ollama. There are no
+API keys, no per-token cost, and the app works with no network. `gemma3:4b`
+does the work at roughly 400ms per book; `qwen3.6:35b-a3b` acts as a second
+opinion where one is worth having.
+
+- [x] **Ollama client** (`server/services/ollamaClient.js`)
+  - [x] Schema-constrained JSON, so replies parse without coaxing
+  - [x] Degrades to null rather than throwing when Ollama is not running
+  - [x] Availability cached for a minute
+- [x] **Automatic subject tagging**
+  - [x] 83-tag controlled vocabulary fitted to this library
+  - [x] Each tag carries a gloss, which is what stops "networking" landing on
+        a book about business contacts
+  - [x] Membership enforced after the fact — models invent tags regardless
+  - [x] Background sweep tags new books without being asked
+  - [x] 797/829 books tagged; the remainder have unusable titles
+- [x] **Ask a book questions** (`server/services/bookQA.js`)
+  - [x] Retrieval over the existing page index, answered locally
+  - [x] Cites the pages used, filtered to pages actually retrieved
+  - [x] Says when the book does not answer the question
+- [x] **Ask the library in plain language** (`server/services/queryInterpreter.js`)
+  - [x] "russian books about business" sets the filters it means
+  - [x] Returns a filter, not a ranking, so it stays visible and undoable
+- [x] **Smart collections** — shelves proposed from the tag distribution
+- [x] **Summaries moved off the paid API**; `@anthropic-ai/sdk` removed
+
+**Metadata repair with the model**
+
+- [x] 66 run-together titles restored — `architectingpowerbisolutionsinmicrosoftfabric`
+      to `Architecting Power BI Solutions in Microsoft Fabric`
+- [x] 57 authors read off front matter
+- [x] Guarded by letter-for-letter comparison and a second model's agreement;
+      34 were left alone because the answer did not pass
+
+**Correctness**
+
+- [x] Saving a book no longer fails and wipes its tags (names sent where ids
+      were expected; the update was not transactional)
+- [x] Merging duplicates reports what it did and refreshes the library
+- [x] Failures behind every button are surfaced — 16 handlers had an empty
+      failure path, which looks exactly like a success that did nothing
+- [x] Filter selections no longer drift when the option list changes
+- [x] The tagging sweep no longer re-processes books it cannot classify
+
+**Groundwork**
+
+- [x] `DATABASE_PATH` is honoured, so destructive work can run against a copy
+- [x] `npm run db:test` makes a trimmed, throwaway copy
+- [x] Background tasks default to off against a non-default database
+- [x] Stored schema repaired — a migration had written double-quoted string
+      literals, which meant VACUUM failed on the database entirely
 
 ---
 
@@ -825,6 +881,32 @@ Bibliotheka/
 ---
 
 ## Changelog
+
+### 2026-09-08 - Phase 15 - Local AI and Correctness
+
+- **All AI moved to Ollama.** Tagging, summaries, metadata repair, question
+  answering and query interpretation run locally. `@anthropic-ai/sdk` removed
+  and `ANTHROPIC_API_KEY` dropped from configuration.
+- **Automatic tagging** against an 83-tag controlled vocabulary, with a
+  background sweep. 797/829 books tagged across 82 tags.
+- **Ask a book questions** over the 108,999-page index, with citations and an
+  explicit "not answered by this book".
+- **Plain-language search** that sets the filter bar rather than returning an
+  opaque ranking.
+- **Smart collections** proposed from the library's own tag distribution.
+- **Metadata repair**: 66 titles and 57 authors recovered by the local model,
+  each guarded and 34 rejected; earlier passes cleared boilerplate from
+  publisher, edition and description, leaving none.
+- **Embeddings backfilled** — semantic search had been blind to 385 books.
+- **A "Recently Added" view**, grouped by day, with an unseen count.
+- **Interface rebuilt** on a semantic colour system that works in both themes;
+  cards, toolbar, filters, sidebar and every modal.
+- **Blocking alerts replaced** with inline status.
+- **Correctness pass**: saving a book, merging duplicates, filter selection
+  drift, the tagging sweep's retry loop, and 16 silent failure paths.
+- **Test database tooling** so destructive work never runs against the library.
+- **Stored schema repaired**; VACUUM works again.
+
 
 ### 2026-04-02 - Phase 14 - AI-Powered Summaries
 
