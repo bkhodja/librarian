@@ -164,7 +164,9 @@ const ALIASES = new Map([
   ['cyber-security', 'security'], ['cybersecurity', 'security'],
   ['operating-systems', 'linux'], ['computer-science', 'algorithms'],
   ['personal-finance', 'finance'], ['communication', 'self-help'],
-  ['photography', 'art'], ['music', 'art'], ['nutrition-and-diet', 'health']
+  ['photography', 'art'], ['music', 'art'], ['nutrition-and-diet', 'health'],
+  ['cookbook', 'cooking'], ['cookery', 'cooking'], ['baking', 'cooking'],
+  ['file-size', null], ['epub', null], ['pdf', null]
 ]);
 
 /**

@@ -101,6 +101,12 @@ function App() {
   const [totalBooks, setTotalBooks] = useState(0);
   const appStatus = useStatus();
 
+  // Constraints an interpreted question adds that the filter bar has no
+  // control for. Kept separate so the visible controls still say what they
+  // say, and one "clear" puts everything back.
+  const [askConstraints, setAskConstraints] = useState(null);
+  const [asking, setAsking] = useState(false);
+
   // When the library was last looked at, so "Recently Added" can say how many
   // books have arrived since. Per-viewer and cosmetic, so localStorage rather
   // than a column on the database.
@@ -232,7 +238,27 @@ function App() {
       const matchesAdultFilter = !userPreferences.hide_adult_content ||
         !book.is_adult || book.is_adult === 0;
 
-      return matchesSearch && matchesTags && matchesAuthor && matchesFileType && matchesLanguage && matchesAdultFilter;
+      // Extra constraints from an interpreted question.
+      let matchesAsk = true;
+      if (askConstraints) {
+        const { yearFrom, yearTo, addedWithinDays, tags: askTags } = askConstraints;
+        const year = book.publication_year;
+
+        if (yearFrom && (!year || year < yearFrom)) matchesAsk = false;
+        if (yearTo && (!year || year > yearTo)) matchesAsk = false;
+
+        if (addedWithinDays) {
+          const cutoff = Date.now() - addedWithinDays * 86400000;
+          if (!book.date_added || new Date(book.date_added).getTime() < cutoff) matchesAsk = false;
+        }
+
+        // More than one subject can be asked for; the bar holds only one.
+        if (askTags && askTags.length > 1) {
+          if (!askTags.every((t) => book.tags?.includes(t))) matchesAsk = false;
+        }
+      }
+
+      return matchesSearch && matchesTags && matchesAuthor && matchesFileType && matchesLanguage && matchesAdultFilter && matchesAsk;
     });
 
     // Apply sorting
@@ -268,7 +294,7 @@ function App() {
     }
 
     return filtered;
-  }, [books, searchQuery, selectedTag, selectedAuthor, selectedFileType, selectedLanguage, sortBy, sortOrder, userPreferences, selectedCollection]);
+  }, [books, searchQuery, selectedTag, selectedAuthor, selectedFileType, selectedLanguage, sortBy, sortOrder, userPreferences, selectedCollection, askConstraints]);
 
   const visibleBooks = React.useMemo(
     () => filteredAndSortedBooks.slice(0, visibleCount),
@@ -443,6 +469,71 @@ function App() {
       console.error('Error generating thumbnails:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  /**
+   * Read the search box as a question and set the filters it means. The
+   * filters stay visible in the bar afterwards, so the interpretation can be
+   * seen, adjusted or undone rather than being an opaque ranking.
+   */
+  const handleAsk = async () => {
+    const question = searchQuery.trim();
+    if (!question) return;
+
+    setAsking(true);
+    try {
+      const response = await fetch(
+        `http://localhost:3001/api/ai-tags/interpret?q=${encodeURIComponent(question)}`
+      );
+      if (!response.ok) {
+        appStatus.error('The local model is not available. Is Ollama running?');
+        return;
+      }
+
+      const { filters, unmatched } = await response.json();
+
+      setSelectedTag(filters.tags?.[0] || '');
+      setSelectedLanguage(filters.language || '');
+      setSelectedFileType(filters.fileType || '');
+      setSelectedAuthor(filters.author && allAuthors.includes(filters.author) ? filters.author : '');
+      if (filters.sortBy) setSortBy(filters.sortBy);
+      if (filters.sortOrder) setSortOrder(filters.sortOrder);
+
+      // The text box becomes the remaining free-text match, or clears when the
+      // question was fully expressed as filters.
+      setSearchQuery(filters.text || (filters.author && !allAuthors.includes(filters.author) ? filters.author : ''));
+
+      setAskConstraints({
+        tags: filters.tags || [],
+        yearFrom: filters.yearFrom,
+        yearTo: filters.yearTo,
+        addedWithinDays: filters.addedWithinDays
+      });
+
+      const applied = [
+        filters.tags?.length ? filters.tags.join(' + ') : null,
+        filters.language,
+        filters.fileType,
+        filters.author,
+        filters.yearFrom ? `from ${filters.yearFrom}` : null,
+        filters.yearTo ? `to ${filters.yearTo}` : null,
+        filters.addedWithinDays ? `added in the last ${filters.addedWithinDays} days` : null
+      ].filter(Boolean);
+
+      if (applied.length === 0 && !filters.text) {
+        appStatus.info(`Could not turn "${question}" into a filter — try naming a subject, author or year.`);
+      } else {
+        appStatus.info(
+          `Showing: ${applied.join(' · ') || filters.text}` +
+          (unmatched?.length ? `\nNot applied: ${unmatched.join(', ')}` : '')
+        );
+      }
+    } catch (error) {
+      console.error('Interpretation failed:', error);
+      appStatus.error('Could not reach the server to interpret that');
+    } finally {
+      setAsking(false);
     }
   };
 
@@ -788,13 +879,25 @@ function App() {
               <span className="hidden shrink-0 text-xs tabular-nums text-ink-faint sm:inline">
                 {loading ? 'Loading...' : (searchQuery || selectedTag || selectedAuthor || selectedFileType) ? `${filteredAndSortedBooks.length} of ${books.length}` : `${totalBooks || books.length} books`}
               </span>
-              <input
-                type="text"
-                placeholder="Search books..."
-                className="h-8 w-52 rounded-md border border-hairline bg-surface-sunken px-3 text-sm text-ink placeholder:text-ink-faint focus:border-accent focus:bg-surface focus:outline-none"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
+              <div className="flex items-center gap-1">
+                <input
+                  type="text"
+                  placeholder="Search, or ask…"
+                  title="Type words to match, or a question like &quot;russian books about business&quot; and press Ask"
+                  className="h-8 w-56 rounded-md border border-hairline bg-surface-sunken px-3 text-sm text-ink placeholder:text-ink-faint focus:border-accent focus:bg-surface focus:outline-none"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleAsk(); }}
+                />
+                <button
+                  onClick={handleAsk}
+                  disabled={asking || !searchQuery.trim()}
+                  title="Read the box as a question and set the filters it means"
+                  className="h-8 shrink-0 rounded-md px-2.5 text-sm font-medium text-accent-ink transition-colors hover:bg-accent-soft disabled:opacity-40"
+                >
+                  {asking ? 'Reading…' : 'Ask'}
+                </button>
+              </div>
               <button
                 onClick={() => setIsSelectionMode(!isSelectionMode)}
                 className={`h-8 shrink-0 rounded-md px-3 text-sm font-medium transition-colors ${isSelectionMode ? 'bg-accent text-white' : 'text-ink-muted hover:bg-surface-hover hover:text-ink'}`}
@@ -879,13 +982,15 @@ function App() {
           </div>
 
           {/* Clear Filters */}
-          {(selectedTag || selectedAuthor || selectedFileType || selectedLanguage) && (
+          {(selectedTag || selectedAuthor || selectedFileType || selectedLanguage || askConstraints) && (
             <button
               onClick={() => {
                 setSelectedTag('');
                 setSelectedAuthor('');
                 setSelectedFileType('');
                 setSelectedLanguage('');
+                setAskConstraints(null);
+                appStatus.clear();
               }}
               className="h-7 rounded-md px-2.5 text-xs font-medium text-accent-ink transition-colors hover:bg-accent-soft"
             >

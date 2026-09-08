@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const aiTagger = require('../services/aiTagger');
 const vocabulary = require('../services/tagVocabulary');
+const queryInterpreter = require('../services/queryInterpreter');
 const { db } = require('../database/init');
 
 /** Is local tagging available, and how much is left to do? */
@@ -81,6 +82,22 @@ router.post('/normalize', (req, res) => {
   try {
     const result = aiTagger.normalizeExistingTags();
     result.pruned = aiTagger.pruneOrphanTags();
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * Read a plain-language request and return the filter it means. The client
+ * applies it, so the result stays visible and reversible.
+ */
+router.get('/interpret', async (req, res) => {
+  try {
+    const result = await queryInterpreter.interpret(req.query.q || '');
+    if (!result) {
+      return res.status(503).json({ error: 'The local model is not available' });
+    }
     res.json(result);
   } catch (error) {
     res.status(500).json({ error: error.message });
