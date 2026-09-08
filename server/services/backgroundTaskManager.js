@@ -333,7 +333,11 @@ class BackgroundTaskManager extends EventEmitter {
       // Books the model could not classify stay untagged, so looping on the
       // untagged count alone would re-process the same rows forever.
       const remaining = aiTagger.countTaggable();
-      if (remaining === 0) return;
+
+      // Adult assessment is separate work on the same model, so returning as
+      // soon as there is nothing left to tag stopped it dead: once the library
+      // was fully tagged, no book was ever assessed again.
+      if (remaining === 0 && aiTagger.countUnassessed() === 0) return;
 
       const status = await aiTagger.status();
       if (!status.available) {
@@ -347,11 +351,13 @@ class BackgroundTaskManager extends EventEmitter {
       }
       this.warnedNoOllama = false;
 
-      console.log(`🏷️  Tagging ${Math.min(TAG_BATCH_SIZE, remaining)} of ${remaining} untagged book(s) with ${status.model}`);
+      if (remaining > 0) {
+        console.log(`🏷️  Tagging ${Math.min(TAG_BATCH_SIZE, remaining)} of ${remaining} untagged book(s) with ${status.model}`);
 
-      const result = await aiTagger.tagUntagged(TAG_BATCH_SIZE);
-      console.log(`   tagged ${result.tagged}, skipped ${result.skipped} ` +
-                  `(${result.bySource.ai} by model, ${result.bySource.keywords} by keywords)`);
+        const result = await aiTagger.tagUntagged(TAG_BATCH_SIZE);
+        console.log(`   tagged ${result.tagged}, skipped ${result.skipped} ` +
+                    `(${result.bySource.ai} by model, ${result.bySource.keywords} by keywords)`);
+      }
 
       // Assess adult content in the same pass. It shares the model and the
       // same "is Ollama up" check, and doing it here means a book added today
