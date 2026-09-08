@@ -3,6 +3,8 @@ import StatusNote, { useStatus } from './StatusNote';
 
 function CollectionsSidebar({ selectedCollection, onCollectionSelect, selectedBookIds, isSelectionMode, onBooksAdded, unseenCount = 0 }) {
   const status = useStatus();
+  const [suggestions, setSuggestions] = useState(null);
+  const [suggesting, setSuggesting] = useState(false);
   const [collections, setCollections] = useState([]);
   const [isCreating, setIsCreating] = useState(false);
   const [newCollectionName, setNewCollectionName] = useState('');
@@ -104,6 +106,48 @@ function CollectionsSidebar({ selectedCollection, onCollectionSelect, selectedBo
     }
   };
 
+  const suggestShelves = async () => {
+    setSuggesting(true);
+    status.clear();
+    try {
+      const response = await fetch('http://localhost:3001/api/collections/suggest');
+      const data = await response.json();
+      if (!response.ok) {
+        status.error(data.error || 'Could not get suggestions');
+        return;
+      }
+      if (!data.collections?.length) {
+        status.info('Nothing to suggest yet — tag some books first.');
+        return;
+      }
+      setSuggestions(data.collections);
+    } catch {
+      status.error('Could not reach the server');
+    } finally {
+      setSuggesting(false);
+    }
+  };
+
+  const createSuggested = async (proposal) => {
+    try {
+      const response = await fetch('http://localhost:3001/api/collections/suggest/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(proposal)
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        status.error(data.error || 'Could not create that shelf');
+        return;
+      }
+      status.success(`Created "${data.name}" with ${data.added} book(s)`);
+      setSuggestions((current) => current.filter((c) => c.name !== proposal.name));
+      loadCollections();
+    } catch {
+      status.error('Could not reach the server');
+    }
+  };
+
   return (
     <aside className="sticky top-0 h-screen w-56 shrink-0 overflow-y-auto border-r border-hairline bg-surface-sunken">
       <div className="p-3">
@@ -123,6 +167,48 @@ function CollectionsSidebar({ selectedCollection, onCollectionSelect, selectedBo
         </div>
 
         <StatusNote status={status.status} onDismiss={status.clear} className="mb-3" />
+
+        <button
+          onClick={suggestShelves}
+          disabled={suggesting}
+          className="mb-3 w-full rounded-md px-2 py-1.5 text-left text-xs text-ink-faint transition-colors hover:bg-surface-hover hover:text-ink disabled:opacity-50"
+        >
+          {suggesting ? 'Looking at your library…' : '✦ Suggest shelves'}
+        </button>
+
+        {suggestions && (
+          <div className="mb-3 space-y-1.5">
+            {suggestions.map((proposal) => (
+              <div key={proposal.name} className="rounded-md bg-surface p-2 ring-1 ring-hairline">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="truncate text-xs font-medium text-ink">
+                    {proposal.icon} {proposal.name}
+                  </span>
+                  <span className="shrink-0 text-2xs tabular-nums text-ink-faint">
+                    {proposal.count}
+                  </span>
+                </div>
+                <p className="mt-0.5 line-clamp-2 text-2xs leading-snug text-ink-faint">
+                  {proposal.tags.join(', ')}
+                </p>
+                <div className="mt-1.5 flex gap-1.5">
+                  <button
+                    onClick={() => createSuggested(proposal)}
+                    className="rounded bg-accent px-2 py-0.5 text-2xs font-medium text-white hover:bg-accent-hover"
+                  >
+                    Create
+                  </button>
+                  <button
+                    onClick={() => setSuggestions((c) => c.filter((x) => x.name !== proposal.name))}
+                    className="rounded px-2 py-0.5 text-2xs text-ink-faint hover:text-ink"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         {isCreating && (
           <div className="mb-4">

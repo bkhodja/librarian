@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { db } = require('../database/init');
+const smartCollections = require('../services/smartCollections');
 
 // Get all collections
 router.get('/', (req, res) => {
@@ -21,6 +22,27 @@ router.get('/', (req, res) => {
 });
 
 // Get single collection with books
+// Declared before '/:id' so Express does not read "suggest" as an id.
+/** Shelves worth making, proposed from the library's own tag distribution. */
+router.get('/suggest', async (req, res) => {
+  try {
+    const result = await smartCollections.propose();
+    if (!result) return res.status(503).json({ error: 'The local model is not available' });
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/** Create one of those shelves and fill it. */
+router.post('/suggest/create', (req, res) => {
+  try {
+    res.json(smartCollections.create(req.body || {}));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
 router.get('/:id', (req, res) => {
   try {
     const collection = db.prepare('SELECT * FROM collections WHERE id = ?').get(req.params.id);
