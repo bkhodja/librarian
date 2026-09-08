@@ -3,11 +3,14 @@ const router = express.Router();
 const summaryService = require('../services/summaryService');
 
 // GET /api/summaries/status - Check if AI summaries are available
-router.get('/status', (req, res) => {
+router.get('/status', async (req, res) => {
+  const available = await summaryService.isAvailable();
   res.json({
-    available: summaryService.isAvailable(),
+    available,
+    provider: 'ollama',
     fallback: 'extractive',
-    model: process.env.SUMMARY_MODEL || 'claude-haiku-4-5-20251001'
+    model: process.env.SUMMARY_MODEL || process.env.OLLAMA_MODEL || 'gemma3:4b',
+    host: process.env.OLLAMA_HOST || 'http://localhost:11434'
   });
 });
 

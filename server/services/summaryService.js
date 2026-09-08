@@ -1,9 +1,24 @@
 const { db } = require('../database/init');
+const ollama = require('./ollamaClient');
 const crypto = require('crypto');
 
-const DEFAULT_MODEL = process.env.SUMMARY_MODEL || 'claude-haiku-4-5-20251001';
-const MAX_TOKENS_PER_REQUEST = 180000;
-const CHUNK_SIZE = 40000; // tokens per chunk for map-reduce
+const DEFAULT_MODEL = process.env.SUMMARY_MODEL || process.env.OLLAMA_MODEL || 'gemma3:4b';
+// Sized for a local model: a laptop can hold a far larger context than it can
+// process quickly, and quality falls off long before the window does.
+const MAX_TOKENS_PER_REQUEST = Number(process.env.SUMMARY_MAX_TOKENS) || 8000;
+const CHUNK_SIZE = Number(process.env.SUMMARY_CHUNK_TOKENS) || 6000; // per map-reduce chunk
+
+// Ollama constrains decoding to this shape, so the reply parses without the
+// regex-hunt for a JSON object that the hosted call needed.
+const SUMMARY_SCHEMA = {
+  type: 'object',
+  properties: {
+    summary: { type: 'string' },
+    summary_short: { type: 'string' }
+  },
+  required: ['summary', 'summary_short']
+};
+
 
 class SummaryService {
   constructor() {
@@ -35,19 +50,14 @@ class SummaryService {
     }
   }
 
+  /** The local model server. Nothing here needs an API key. */
   async getClient() {
-    if (this.client) return this.client;
-
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) return null;
-
-    const Anthropic = (await import('@anthropic-ai/sdk')).default;
-    this.client = new Anthropic({ apiKey });
-    return this.client;
+    return ollama;
   }
 
-  isAvailable() {
-    return !!process.env.ANTHROPIC_API_KEY;
+
+  async isAvailable() {
+    return ollama.isAvailable();
   }
 
   estimateTokens(text) {
@@ -194,81 +204,69 @@ Respond in ${lang}. Format your response as JSON:
    * Single-pass summarization for shorter books
    */
   async summarizeSinglePass(text, book) {
-    const client = await this.getClient();
     const prompt = this.buildPrompt(book, 'single-pass');
 
-    const response = await client.messages.create({
-      model: DEFAULT_MODEL,
-      max_tokens: 1500,
-      messages: [
-        { role: 'user', content: `${prompt}\n\n--- BOOK CONTENT ---\n${text}` }
-      ]
-    });
+    const result = await ollama.generateJSON(
+      `${prompt}\n\n--- BOOK CONTENT ---\n${text}`,
+      SUMMARY_SCHEMA,
+      { model: DEFAULT_MODEL, maxTokens: 1200, temperature: 0.3 }
+    );
 
-    return this.parseResponse(response);
+    return this.normalizeResult(result);
   }
 
   /**
    * Map-reduce summarization for longer books
    */
   async summarizeMapReduce(chunks, book) {
-    const client = await this.getClient();
-
     // Map: summarize each chunk
     const chunkSummaries = [];
     for (let i = 0; i < chunks.length; i++) {
       console.log(`  Summarizing chunk ${i + 1}/${chunks.length}...`);
-      const response = await client.messages.create({
-        model: DEFAULT_MODEL,
-        max_tokens: 800,
-        messages: [
-          {
-            role: 'user',
-            content: `Summarize this section (part ${i + 1} of ${chunks.length}) of "${book.title || 'a book'}" in 2-3 paragraphs. Focus on key points and themes.\n\n${chunks[i]}`
-          }
-        ]
-      });
-      chunkSummaries.push(response.content[0].text);
+
+      const part = await ollama.generateText(
+        `Summarize this section (part ${i + 1} of ${chunks.length}) of "${book.title || 'a book'}" ` +
+        `in 2-3 paragraphs. Focus on key points and themes.\n\n${chunks[i]}`,
+        { model: DEFAULT_MODEL, maxTokens: 600, temperature: 0.3 }
+      );
+
+      if (part) chunkSummaries.push(part);
     }
+
+    if (chunkSummaries.length === 0) return null;
 
     // Reduce: synthesize chunk summaries into final summary
     const prompt = this.buildPrompt(book, 'map-reduce');
-    const combined = chunkSummaries.map((s, i) => `[Part ${i + 1}]\n${s}`).join('\n\n');
+    const combined = chunkSummaries.map((text, i) => `[Part ${i + 1}]\n${text}`).join('\n\n');
 
-    const response = await client.messages.create({
-      model: DEFAULT_MODEL,
-      max_tokens: 1500,
-      messages: [
-        {
-          role: 'user',
-          content: `${prompt}\n\nHere are summaries of each section of the book:\n\n${combined}`
-        }
-      ]
-    });
+    const result = await ollama.generateJSON(
+      `${prompt}\n\nHere are summaries of each section of the book:\n\n${combined}`,
+      SUMMARY_SCHEMA,
+      { model: DEFAULT_MODEL, maxTokens: 1200, temperature: 0.3 }
+    );
 
-    return this.parseResponse(response);
+    return this.normalizeResult(result);
   }
 
   /**
-   * Parse Claude's JSON response
+   * The schema guarantees the shape, but the model can still return an empty
+   * string, and generateJSON returns null when Ollama is unreachable.
    */
-  parseResponse(response) {
-    const text = response.content[0].text;
-    try {
-      // Try to extract JSON from the response
-      const jsonMatch = text.match(/\{[\s\S]*"summary"[\s\S]*\}/);
-      if (jsonMatch) {
-        return JSON.parse(jsonMatch[0]);
-      }
-    } catch (e) {
-      // JSON parse failed
+  normalizeResult(result) {
+    if (!result || typeof result.summary !== 'string' || !result.summary.trim()) {
+      return null;
     }
-    // Fallback: use the whole response as the summary
-    return { summary: text, summary_short: text.slice(0, 200) };
+
+    const summary = result.summary.trim();
+    const short = typeof result.summary_short === 'string' && result.summary_short.trim()
+      ? result.summary_short.trim()
+      : summary.slice(0, 200);
+
+    return { summary, summary_short: short };
   }
 
   /**
-   * Extractive fallback when no API key is available
+   * Extractive fallback for when the local model is unavailable
    */
   extractiveFallback(text, book) {
     const words = text.split(/\s+/);
@@ -321,7 +319,7 @@ Respond in ${lang}. Format your response as JSON:
     let strategy;
     let modelName;
 
-    if (this.isAvailable() && this.checkRateLimit()) {
+    if ((await this.isAvailable()) && this.checkRateLimit()) {
       // AI-powered summary
       console.log(`🤖 Generating AI summary for: ${book.title} (~${tokenEstimate} tokens)`);
 
@@ -340,9 +338,18 @@ Respond in ${lang}. Format your response as JSON:
         result = await this.summarizeSinglePass(sampledText, book);
       }
       modelName = DEFAULT_MODEL;
+
+      // The model server can go away between the availability check and the
+      // call itself. An empty result is not a summary.
+      if (!result) {
+        console.log(`📝 Local model returned nothing; falling back to an excerpt for: ${book.title}`);
+        strategy = 'extractive';
+        result = this.extractiveFallback(text, book);
+        modelName = 'extractive-local';
+      }
     } else {
       // Extractive fallback
-      console.log(`📝 Generating extractive summary for: ${book.title} (no API key)`);
+      console.log(`📝 Generating extractive summary for: ${book.title} (local model unavailable)`);
       strategy = 'extractive';
       result = this.extractiveFallback(text, book);
       modelName = 'extractive-local';
@@ -406,7 +413,6 @@ Respond in ${lang}. Format your response as JSON:
       coverage: totalBooks > 0 ? Math.round((summarized / totalBooks) * 100) : 0,
       byStrategy,
       totalTokensProcessed: totalTokens,
-      apiAvailable: this.isAvailable(),
       model: DEFAULT_MODEL
     };
   }
