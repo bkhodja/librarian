@@ -1,6 +1,14 @@
 import React, { useState } from 'react';
-import ReadingProgress from './ReadingProgress';
 
+/**
+ * A book in the library grid.
+ *
+ * The cover carries the identity, so the card around it is kept to a hairline
+ * and the metadata below is limited to what distinguishes one book from
+ * another. Status is shown only when it says something: a "searchable" badge
+ * that appears on 343 of 345 books, or a progress bar reading 0% on every
+ * unread book, is noise repeated hundreds of times down the page.
+ */
 const BookCard = ({
   book,
   isSelected,
@@ -12,161 +20,155 @@ const BookCard = ({
 }) => {
   const [imageError, setImageError] = useState(false);
 
-  const getLanguageBadgeClass = (language) => {
-    if (!language || language === 'Not scanned') return 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-200';
-    if (language === 'Russian') return 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200';
-    if (language === 'English') return 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-200';
-    if (language === 'unknown') return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-200';
-    return 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300';
-  };
+  const progress = book.readingProgress;
+  const percentage = Math.round(progress?.percentage || 0);
+  const hasStarted = percentage > 0;
 
-  const getPdfTypeBadgeClass = (pdfType) => {
-    switch(pdfType) {
-      case 'searchable': return 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-200';
-      case 'scanned': return 'bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-200';
-      case 'mixed': return 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-200';
-      case 'unknown': return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-200';
-      default: return 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300';
-    }
-  };
+  const needsAttention = !book.language || book.language === 'Not scanned';
+  const isScanned = book.pdf_type === 'scanned';
 
-  const getPdfTypeIcon = (pdfType) => {
-    switch(pdfType) {
-      case 'searchable': return '📝';
-      case 'scanned': return '📷';
-      case 'mixed': return '📑';
-      case 'unknown': return '❓';
-      default: return '';
-    }
-  };
+  const showCover = book.thumbnail_url && !imageError;
 
   return (
-    <div
+    <article
       className={`
-        relative group cursor-pointer overflow-hidden
-        bg-white dark:bg-gray-800
-        rounded-xl shadow-md hover:shadow-xl
-        transition-all duration-300 transform hover:-translate-y-1
-        border-2 ${isSelected ? 'border-blue-500 ring-2 ring-blue-200' : 'border-transparent'}
+        group relative flex flex-col cursor-pointer
+        rounded-card bg-surface
+        ring-1 transition-all duration-200 ease-out
+        hover:-translate-y-0.5 hover:shadow-card-hover
+        ${isSelected
+          ? 'ring-2 ring-accent shadow-card-hover'
+          : 'ring-hairline shadow-card hover:ring-hairline'}
       `}
       onClick={onClick}
       onDoubleClick={onDoubleClick}
     >
-      {/* Selection Checkbox */}
-      {onSelect && (
-        <div
-          className="absolute top-3 left-3 z-20"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <input
-            type="checkbox"
-            checked={isSelected}
-            onChange={(e) => {
-              e.stopPropagation();
-              onSelect(book.id, e.target.checked);
-            }}
-            className="w-5 h-5 text-blue-600 bg-white dark:bg-gray-700 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:border-gray-600 cursor-pointer shadow-sm"
-          />
-        </div>
-      )}
-
-      {/* Remove from Collection Button */}
-      {selectedCollection && onRemoveFromCollection && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            if (window.confirm('Remove this book from the collection?')) {
-              onRemoveFromCollection(book.id);
-            }
-          }}
-          className="absolute top-3 right-3 z-20 p-2 bg-red-500 text-white rounded-full hover:bg-red-600 shadow-md opacity-0 group-hover:opacity-100 transition-opacity"
-          title="Remove from collection"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-      )}
-
-      {/* Book Cover Section - Prominent Display */}
-      <div className="relative w-full aspect-[3/4] bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800">
-        {book.thumbnail_url && !imageError ? (
+      {/* Cover */}
+      <div className="relative aspect-[3/4] overflow-hidden rounded-t-card bg-surface-sunken">
+        {showCover ? (
           <img
             src={book.thumbnail_url}
-            alt={book.title || 'Book cover'}
-            className="w-full h-full object-cover"
+            alt=""
+            className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.03]"
             onError={() => setImageError(true)}
             loading="lazy"
           />
         ) : (
-          <div className="w-full h-full flex flex-col items-center justify-center p-4">
-            <div className="text-6xl mb-3 opacity-50">📚</div>
-            <div className="text-center">
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400 line-clamp-2">
-                {book.title || 'Untitled'}
-              </p>
-              {book.author && (
-                <p className="text-xs text-gray-500 dark:text-gray-500 mt-1 line-clamp-1">
-                  {book.author}
-                </p>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Hover Overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4">
-          <div className="text-white">
-            <p className="text-sm font-semibold mb-1 line-clamp-2">{book.title || 'Untitled'}</p>
-            <p className="text-xs opacity-90">Double-click to open</p>
-          </div>
-        </div>
-
-        {/* Language Badge - Top Right of Image */}
-        <div className="absolute top-3 right-3">
-          <span className={`text-xs px-2 py-1 rounded-full font-medium shadow-sm ${getLanguageBadgeClass(book.language)}`}>
-            {!book.language || book.language === 'Not scanned' ? '⚠️' : book.language}
-          </span>
-        </div>
-      </div>
-
-      {/* Book Information Section */}
-      <div className="p-4 space-y-2">
-        {/* Title and Author */}
-        <div>
-          <h3 className="font-semibold text-gray-900 dark:text-gray-100 line-clamp-1 text-sm" title={book.title}>
-            {book.title || 'Untitled'}
-          </h3>
-          <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-1 mt-1">
-            {book.author || 'Unknown Author'}
-          </p>
-        </div>
-
-        {/* Year and Pages */}
-        <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
-          {book.publication_year && (
-            <span>Year: {book.publication_year}</span>
-          )}
-          {book.page_count && (
-            <span>Pages: {book.page_count}</span>
-          )}
-        </div>
-
-        {/* PDF Status */}
-        {book.pdf_type && (
-          <div className="flex items-center">
-            <span className={`text-xs px-2 py-1 rounded-full font-medium ${getPdfTypeBadgeClass(book.pdf_type)}`}>
-              {getPdfTypeIcon(book.pdf_type)} {book.pdf_type}
+          /* No cover: set the title as the jacket rather than showing an icon. */
+          <div className="flex h-full w-full flex-col justify-between p-4 bg-gradient-to-br from-surface-sunken to-surface-hover">
+            <span className="text-2xs font-medium uppercase tracking-wider text-ink-faint">
+              {book.file_path?.split('.').pop()?.toUpperCase() || 'Book'}
             </span>
+            <p className="line-clamp-4 text-sm font-semibold leading-snug text-ink-muted">
+              {book.title || 'Untitled'}
+            </p>
           </div>
         )}
 
-        {/* Reading Progress */}
-        <div className="pt-1">
-          <ReadingProgress book={book} compact={true} />
+        {/* Reading progress rides the bottom edge of the cover, and only once
+            there is something to report. */}
+        {hasStarted && (
+          <div
+            className="absolute inset-x-0 bottom-0 h-1 bg-black/25"
+            title={`${percentage}% read`}
+          >
+            <div className="h-full bg-accent" style={{ width: `${percentage}%` }} />
+          </div>
+        )}
+
+        {/* Flags for the two states worth interrupting for. Everything else
+            lives in the detail modal. */}
+        {(needsAttention || isScanned) && (
+          <div className="absolute left-2 top-2 flex gap-1">
+            {needsAttention && (
+              <span
+                className="rounded bg-amber-500/95 px-1.5 py-0.5 text-2xs font-semibold text-white shadow-sm"
+                title="Not yet processed"
+              >
+                Unscanned
+              </span>
+            )}
+            {isScanned && (
+              <span
+                className="rounded bg-black/70 px-1.5 py-0.5 text-2xs font-semibold text-white shadow-sm"
+                title="Scanned images — text is not searchable"
+              >
+                Scan
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Hover affordance */}
+        <div className="pointer-events-none absolute inset-0 flex items-end bg-gradient-to-t from-black/70 via-black/10 to-transparent p-3 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+          <span className="text-2xs font-medium text-white/90">Double-click to open</span>
+        </div>
+
+        {/* Selection */}
+        {onSelect && (
+          <div
+            className={`absolute right-2 top-2 transition-opacity ${
+              isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={(e) => {
+                e.stopPropagation();
+                onSelect(book.id, e.target.checked);
+              }}
+              className="h-4 w-4 cursor-pointer rounded border-white/70 bg-white/90 text-accent shadow-sm focus:ring-accent"
+              aria-label={`Select ${book.title || 'book'}`}
+            />
+          </div>
+        )}
+
+        {/* Remove from collection */}
+        {selectedCollection && onRemoveFromCollection && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              if (window.confirm('Remove this book from the collection?')) {
+                onRemoveFromCollection(book.id);
+              }
+            }}
+            className="absolute bottom-2 right-2 rounded-full bg-black/60 p-1.5 text-white opacity-0 shadow-sm transition hover:bg-red-600 group-hover:opacity-100"
+            title="Remove from collection"
+          >
+            <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        )}
+      </div>
+
+      {/* Details. Fixed height so rows line up regardless of how much each
+          book knows about itself. */}
+      <div className="flex min-h-[4.75rem] flex-col justify-between gap-1 px-3 py-2.5">
+        <h3
+          className="line-clamp-2 text-[0.8125rem] font-semibold leading-snug text-ink"
+          title={book.title}
+        >
+          {book.title || 'Untitled'}
+        </h3>
+
+        <div className="flex items-baseline justify-between gap-2">
+          <p
+            className={`line-clamp-1 text-xs ${book.author ? 'text-ink-muted' : 'text-ink-faint italic'}`}
+            title={book.author || undefined}
+          >
+            {book.author || 'No author'}
+          </p>
+          {book.publication_year && (
+            <span className="shrink-0 text-2xs tabular-nums text-ink-faint">
+              {book.publication_year}
+            </span>
+          )}
         </div>
       </div>
-    </div>
+    </article>
   );
 };
 
