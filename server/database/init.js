@@ -2,14 +2,33 @@ const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
 
-// Determine database path
-const dbPath = path.join(__dirname, '../../data');
-if (!fs.existsSync(dbPath)) {
-  fs.mkdirSync(dbPath, { recursive: true });
-}
+/**
+ * Which database file to open.
+ *
+ * DATABASE_PATH was documented in .env.example but nothing read it — the path
+ * was hardcoded, so there was no way to point the app at a copy. Anything that
+ * might destroy data had to be tried against the real library.
+ *
+ * Relative paths resolve from the project root, so DATABASE_PATH=./data/test.db
+ * means what it looks like from the command line.
+ */
+const DEFAULT_DB = path.join(__dirname, '../../data/librarian.db');
+const dbFile = process.env.DATABASE_PATH
+  ? path.resolve(__dirname, '../..', process.env.DATABASE_PATH)
+  : DEFAULT_DB;
+
+fs.mkdirSync(path.dirname(dbFile), { recursive: true });
+
+const isDefault = path.resolve(dbFile) === path.resolve(DEFAULT_DB);
+
+// Always say which file is open. Working on the wrong database is the kind of
+// mistake that is only obvious afterwards.
+console.log(isDefault
+  ? `📚 Library database: ${dbFile}`
+  : `🧪 Library database: ${dbFile}  (not the default — set by DATABASE_PATH)`);
 
 // Initialize database
-const db = new Database(path.join(dbPath, 'librarian.db'));
+const db = new Database(dbFile);
 db.pragma('journal_mode = WAL'); // Better performance for concurrent access
 
 // Create tables
@@ -283,7 +302,10 @@ const runMigrations = () => {
   // Add OCR status column
   const hasOcrStatus = columns.some(col => col.name === 'ocr_status');
   if (!hasOcrStatus) {
-    db.exec('ALTER TABLE books ADD COLUMN ocr_status TEXT DEFAULT "not_needed" CHECK(ocr_status IN ("not_needed", "pending", "processing", "completed", "failed"))');
+    // Single quotes: SQLite accepts double-quoted string literals when writing
+    // the schema but rejects them when VACUUM re-parses it, which left the
+    // database unable to be vacuumed or copied with VACUUM INTO.
+    db.exec("ALTER TABLE books ADD COLUMN ocr_status TEXT DEFAULT 'not_needed' CHECK(ocr_status IN ('not_needed', 'pending', 'processing', 'completed', 'failed'))");
     console.log('✅ Added ocr_status column to books table');
   }
 
@@ -417,6 +439,8 @@ const deleteBook = (id) => {
 
 module.exports = {
   db,
+  dbFile,
+  isDefaultDatabase: isDefault,
   getStats,
   close: () => db.close(),
   getBookById,

@@ -93,6 +93,31 @@ npm run react:start  # Frontend (port 5173)
 npm run electron:dev # Electron app
 ```
 
+## Testing against a copy of your library
+
+Anything that deletes or merges books should be tried against a copy, not the
+library itself.
+
+```bash
+npm run db:test        # 60-book sample copied from the live database
+npm run db:test:full   # or the whole thing
+npm run db:status      # what each database currently holds
+npm run server:test    # run the API against the copy
+```
+
+The server prints which database it opened on startup, and background tasks
+(scanning, tagging, thumbnails) switch off automatically against a non-default
+database — otherwise the scanner would re-import every file and turn the sample
+back into the full library. Set `BACKGROUND_TASKS=on` if you want them.
+
+`DATABASE_PATH` selects the file, relative to the project root:
+
+```bash
+DATABASE_PATH=./data/test.librarian.db node server/index.js
+```
+
+Re-run `npm run db:test` at any point to throw the copy away and start again.
+
 ## Development
 
 See [DEVELOPMENT_PLAN.md](./DEVELOPMENT_PLAN.md) for detailed development roadmap and architecture.

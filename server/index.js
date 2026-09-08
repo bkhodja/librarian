@@ -161,6 +161,20 @@ app.listen(PORT, async () => {
   console.log(`\n🚀 Librarian server running on http://localhost:${PORT}\n`);
 
   // Initialize background tasks
+  //
+  // Off by default against a non-default database: the scanner would re-import
+  // every file from the books folder, which turns a deliberately small test
+  // fixture back into the whole library, and then spend minutes tagging and
+  // thumbnailing it. Set BACKGROUND_TASKS=on to override.
+  const backgroundDefault = db.isDefaultDatabase ? 'on' : 'off';
+  const backgroundTasks = (process.env.BACKGROUND_TASKS || backgroundDefault).toLowerCase();
+
+  if (backgroundTasks === 'off') {
+    console.log('⏸️  Background tasks are off (scanning, tagging, thumbnails). Set BACKGROUND_TASKS=on to enable.');
+    logger.info('Background tasks disabled');
+    return;
+  }
+
   try {
     await backgroundTaskManager.initialize();
     logger.info('Background tasks initialized');
