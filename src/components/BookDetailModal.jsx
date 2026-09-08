@@ -149,7 +149,11 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
         body: JSON.stringify({ force })
       });
       const data = await response.json();
-      if (data.error) {
+      if (data.code === 'NO_TEXT') {
+        // Not a failure — the book simply has no text to work from. Most of
+        // the library is in this state until pages are indexed.
+        summaryStatus.info(data.error);
+      } else if (data.error) {
         summaryStatus.error(`Could not generate a summary: ${data.error}`);
       } else {
         setSummary({

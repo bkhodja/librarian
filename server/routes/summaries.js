@@ -46,6 +46,12 @@ router.post('/:bookId/generate', async (req, res) => {
     const result = await summaryService.generateSummary(bookId, { force });
     res.json(result);
   } catch (error) {
+    // A book with no extracted text is a state of the library, not a fault of
+    // the server, and saying so lets the client explain it.
+    if (error.code === 'NO_TEXT') {
+      return res.status(422).json({ error: error.message, code: 'NO_TEXT' });
+    }
+
     console.error('Summary generation error:', error);
     res.status(500).json({ error: error.message });
   }

@@ -8,6 +8,11 @@ const DEFAULT_MODEL = process.env.SUMMARY_MODEL || process.env.OLLAMA_MODEL || '
 const MAX_TOKENS_PER_REQUEST = Number(process.env.SUMMARY_MAX_TOKENS) || 8000;
 const CHUNK_SIZE = Number(process.env.SUMMARY_CHUNK_TOKENS) || 6000; // per map-reduce chunk
 
+// How many request-budgets of text map-reduce will work through before the
+// book is sampled instead. Each multiple is another pass over the model, so
+// this trades minutes against coverage.
+const MAP_REDUCE_LIMIT = Number(process.env.SUMMARY_MAP_REDUCE_LIMIT) || 6;
+
 // Ollama constrains decoding to this shape, so the reply parses without the
 // regex-hunt for a JSON object that the hosted call needed.
 const SUMMARY_SCHEMA = {
@@ -92,10 +97,15 @@ class SummaryService {
    * Get book text content from database
    */
   getBookText(bookId) {
+    // Ids arrive from the URL as strings. book_pages.book_id has integer
+    // affinity so a string coerces, but books_fts.book_id is an FTS5
+    // UNINDEXED column with none, where '351' matches nothing.
+    const id = Number(bookId);
+
     // Try page-level content first (better for sampling)
     const pages = db.prepare(
       'SELECT page_number, content FROM book_pages WHERE book_id = ? ORDER BY page_number'
-    ).all(bookId);
+    ).all(id);
 
     if (pages.length > 0) {
       const text = pages.map(p => p.content).join('\n\n');
@@ -105,16 +115,18 @@ class SummaryService {
     // Fall back to FTS content
     const fts = db.prepare(
       'SELECT content FROM books_fts WHERE book_id = ?'
-    ).get(bookId);
+    ).get(id);
 
     if (fts?.content) {
       return { text: fts.content, pageCount: null, source: 'fts', pages: null };
     }
 
-    // Fall back to book's own content field
-    const book = db.prepare('SELECT content, ocr_text FROM books WHERE id = ?').get(bookId);
-    const text = book?.content || book?.ocr_text || '';
-    return { text, pageCount: null, source: 'book', pages: null };
+    // Last resort, OCR output. There is no `content` column on books — the
+    // extracted text lives in book_pages — and asking for one made this
+    // fallback throw "no such column: content" instead of returning nothing,
+    // so every book without indexed pages failed with a 500.
+    const book = db.prepare('SELECT ocr_text FROM books WHERE id = ?').get(id);
+    return { text: book?.ocr_text || '', pageCount: null, source: 'ocr', pages: null };
   }
 
   /**
@@ -293,7 +305,12 @@ Respond in ${lang}. Format your response as JSON:
 
     const { text, pages } = this.getBookText(bookId);
     if (!text || text.trim().length < 100) {
-      throw new Error('Insufficient text content for summary generation');
+      const error = new Error(
+        'This book has no extracted text yet, so there is nothing to summarise. ' +
+        'Text is extracted when a book is indexed for page-level search.'
+      );
+      error.code = 'NO_TEXT';
+      throw error;
     }
 
     const contentHash = this.hashContent(text);
@@ -323,10 +340,19 @@ Respond in ${lang}. Format your response as JSON:
       // AI-powered summary
       console.log(`🤖 Generating AI summary for: ${book.title} (~${tokenEstimate} tokens)`);
 
-      if (tokenEstimate < 50000) {
+      /*
+       * Thresholds derive from the request budget rather than being fixed.
+       * They were written for a 200K hosted window — anything under 50,000
+       * tokens went in a single pass — and when the budget dropped to 8,000
+       * for a local model the numbers were not brought with it. That sent
+       * books of up to 50,000 tokens whole to a model sized for 8,000, and
+       * made the map-reduce branch unreachable, since its 8,000-token
+       * condition sat behind one that had already matched at 50,000.
+       */
+      if (tokenEstimate <= MAX_TOKENS_PER_REQUEST) {
         strategy = 'single-pass';
         result = await this.summarizeSinglePass(text, book);
-      } else if (tokenEstimate < MAX_TOKENS_PER_REQUEST) {
+      } else if (tokenEstimate <= MAX_TOKENS_PER_REQUEST * MAP_REDUCE_LIMIT) {
         strategy = 'map-reduce';
         const chunks = this.chunkText(text);
         result = await this.summarizeMapReduce(chunks, book);
