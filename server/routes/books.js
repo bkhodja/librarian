@@ -2,6 +2,21 @@ const express = require('express');
 const router = express.Router();
 const { db } = require('../database/init');
 const thumbnailGenerator = require('../services/thumbnailGeneratorPdf2pic');
+
+/**
+ * Columns returned by the book listing. Deliberately not b.* — manual_metadata
+ * holds the raw PDF info blob and accounted for 2.8MB of a 3.3MB response
+ * despite nothing in the UI reading it, and ocr_text is unbounded. Both are
+ * still available from GET /api/books/:id.
+ */
+const LIST_COLUMNS = [
+  'b.id', 'b.title', 'b.author', 'b.language', 'b.file_path', 'b.file_size',
+  'b.page_count', 'b.pdf_type', 'b.ocr_confidence', 'b.needs_review',
+  'b.date_added', 'b.last_modified', 'b.last_opened', 'b.thumbnail_path',
+  'b.publication_year', 'b.isbn', 'b.publisher', 'b.edition', 'b.description',
+  'b.categories', 'b.average_rating', 'b.thumbnail_url', 'b.metadata_source',
+  'b.ocr_status', 'b.is_adult'
+].join(', ');
 const metadataEnricher = require('../services/bookMetadataEnricher');
 const fs = require('fs');
 const path = require('path');
@@ -182,7 +197,7 @@ router.get('/', (req, res) => {
     const sortBy = req.query.sortBy || 'date_added';
     const sortOrder = req.query.sortOrder?.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
 
-    let query = 'SELECT DISTINCT b.* FROM books b WHERE 1=1';
+    let query = `SELECT DISTINCT ${LIST_COLUMNS} FROM books b WHERE 1=1`;
     const params = [];
 
     // Search filter
@@ -211,7 +226,7 @@ router.get('/', (req, res) => {
 
     // Tags filter (if we have tags in the query)
     if (tags.length > 0) {
-      query = `SELECT DISTINCT b.* FROM books b
+      query = `SELECT DISTINCT ${LIST_COLUMNS} FROM books b
                INNER JOIN book_tags bt ON b.id = bt.book_id
                INNER JOIN tags t ON bt.tag_id = t.id
                WHERE 1=1`;
@@ -265,12 +280,38 @@ router.get('/', (req, res) => {
       tagsByBook[book_id].push(name);
     });
 
-    // Add thumbnail URLs and tags to each book
+    // Reading progress in the same round trip. Each card used to fetch its own
+    // progress, so rendering a page of the library fired one request per book.
+    let progressByBook = {};
+
+    if (bookIds.length > 0) {
+      const placeholders = bookIds.map(() => '?').join(',');
+      const rows = db.prepare(`
+        SELECT book_id, current_page, total_pages, percentage, last_read,
+               started_reading, finished_reading, reading_time_minutes
+        FROM reading_progress
+        WHERE book_id IN (${placeholders})
+      `).all(...bookIds);
+
+      progressByBook = Object.fromEntries(rows.map(row => [row.book_id, row]));
+    }
+
+    // Add thumbnail URLs, tags and progress to each book
     books.forEach(book => {
       if (book.thumbnail_path) {
         book.thumbnail_url = `http://localhost:3001${book.thumbnail_path}`;
       }
       book.tags = tagsByBook[book.id] || [];
+      book.readingProgress = progressByBook[book.id] || {
+        book_id: book.id,
+        current_page: 0,
+        total_pages: book.page_count || 0,
+        percentage: 0,
+        reading_time_minutes: 0,
+        last_read: null,
+        started_reading: null,
+        finished_reading: null
+      };
     });
 
     // Get total count for pagination
