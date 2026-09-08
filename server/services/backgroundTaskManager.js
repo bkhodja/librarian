@@ -2,8 +2,12 @@ const { db } = require('../database/init');
 const path = require('path');
 const fs = require('fs').promises;
 const chokidar = require('chokidar');
-const pdfProcessor = require('./pdfProcessor');
 const epubProcessor = require('./epubProcessorImproved'); // Use improved processor with cover extraction
+const processorPool = require('./bookProcessorPool');
+
+const THUMBNAIL_BATCH_SIZE = Number(process.env.THUMBNAIL_BATCH_SIZE) || 25;
+const THUMBNAIL_CONCURRENCY = Number(process.env.THUMBNAIL_CONCURRENCY) || 3;
+const PROCESS_CONCURRENCY = Number(process.env.PROCESSOR_WORKERS) || 2;
 const thumbnailGenerator = require('./thumbnailGeneratorPdf2pic');
 const EventEmitter = require('events');
 
@@ -13,7 +17,8 @@ class BackgroundTaskManager extends EventEmitter {
     this.booksFolder = '/Volumes/Storage/Books';
     this.fileWatcher = null;
     this.processingQueue = new Set();
-    this.isProcessing = false;
+    this.activeJobs = 0;
+    this.isGeneratingThumbnails = false;
     this.scanInterval = null;
     this.processInterval = null;
     this.thumbnailInterval = null;
@@ -257,13 +262,22 @@ class BackgroundTaskManager extends EventEmitter {
     }
   }
 
-  async processQueuedBooks() {
-    if (this.isProcessing || this.processingQueue.size === 0) return;
+  processQueuedBooks() {
+    while (this.activeJobs < PROCESS_CONCURRENCY && this.processingQueue.size > 0) {
+      const bookId = this.processingQueue.values().next().value;
+      this.processingQueue.delete(bookId);
 
-    this.isProcessing = true;
-    const bookId = this.processingQueue.values().next().value;
-    this.processingQueue.delete(bookId);
+      this.activeJobs++;
+      this.processBook(bookId).finally(() => {
+        this.activeJobs--;
+        if (this.processingQueue.size > 0) {
+          setTimeout(() => this.processQueuedBooks(), 100);
+        }
+      });
+    }
+  }
 
+  async processBook(bookId) {
     try {
       const book = db.prepare('SELECT * FROM books WHERE id = ?').get(bookId);
       if (book) {
@@ -273,22 +287,18 @@ class BackgroundTaskManager extends EventEmitter {
           return;
         }
 
+        // The cover is what the library grid needs to render, and it is far
+        // cheaper than parsing the document, so produce it first rather than
+        // making it wait behind metadata extraction.
+        if (!book.thumbnail_path) {
+          await this.generateThumbnailForBook(book);
+        }
+
         console.log(`⚙️  Processing: ${path.basename(book.file_path)}`);
 
-        // Determine file type and process accordingly
-        const ext = path.extname(book.file_path).toLowerCase();
-        let result;
-
-        if (ext === '.pdf') {
-          // Process PDF
-          result = await pdfProcessor.processPDF(book.file_path);
-        } else if (ext === '.epub') {
-          // Process ePUB
-          result = await epubProcessor.processEpub(book.file_path);
-        } else {
-          console.error(`Unsupported file type: ${ext}`);
-          return;
-        }
+        // Runs in a worker thread: parsing a large PDF would otherwise block
+        // the event loop and stall every in-flight API request.
+        const result = await processorPool.process(book.file_path);
 
         if (result.success) {
           // Update database with extracted metadata
@@ -300,32 +310,30 @@ class BackgroundTaskManager extends EventEmitter {
                 edition = ?, description = ?
             WHERE id = ?
           `).run(
-            result.metadata.title || book.title,
-            result.metadata.author,
-            result.metadata.language,
-            result.metadata.pageCount || result.metadata.chapters, // ePUBs have chapters instead of pages
-            result.metadata.pdfType || (ext === '.epub' ? null : result.metadata.fileType),
-            result.metadata.ocrConfidence || null,
-            result.metadata.isbn,
-            result.metadata.publisher,
-            result.metadata.publicationYear,
-            result.metadata.edition,
-            result.metadata.description,
+            result.title || book.title,
+            result.author,
+            result.language,
+            result.pageCount,
+            result.pdfType,
+            result.ocrConfidence,
+            result.isbn,
+            result.publisher,
+            result.publicationYear,
+            result.edition,
+            result.description,
             bookId
           );
-
-          // Generate thumbnail
-          await this.generateThumbnailForBook(book);
+        } else {
+          // Leave a marker so the book drops out of the unprocessed sweep
+          // instead of being retried on every pass forever.
+          console.error(`Failed to process ${book.file_path}: ${result.error || 'unknown error'}`);
+          db.prepare(
+            "UPDATE books SET language = COALESCE(language, 'unknown'), needs_review = 1 WHERE id = ?"
+          ).run(bookId);
         }
       }
     } catch (error) {
       console.error(`Error processing book ${bookId}:`, error);
-    } finally {
-      this.isProcessing = false;
-      // Process next in queue
-      if (this.processingQueue.size > 0) {
-        setTimeout(() => this.processQueuedBooks(), 100);
-      }
     }
   }
 
@@ -334,8 +342,8 @@ class BackgroundTaskManager extends EventEmitter {
       SELECT id FROM books
       WHERE (language IS NULL OR language = 'Not scanned')
         AND needs_review = 0
-      LIMIT 10
-    `).all();
+      LIMIT ?
+    `).all(PROCESS_CONCURRENCY * 5);
 
     if (unprocessedBooks.length > 0) {
       console.log(`📋 Found ${unprocessedBooks.length} unprocessed books`);
@@ -347,19 +355,36 @@ class BackgroundTaskManager extends EventEmitter {
   }
 
   async generateMissingThumbnails() {
-    const booksWithoutThumbnails = db.prepare(`
-      SELECT id, file_path FROM books
-      WHERE thumbnail_path IS NULL
-        AND needs_review = 0
-      LIMIT 5
-    `).all();
+    if (this.isGeneratingThumbnails) return;
+    this.isGeneratingThumbnails = true;
 
-    if (booksWithoutThumbnails.length > 0) {
-      console.log(`🖼️  Generating thumbnails for ${booksWithoutThumbnails.length} books`);
+    try {
+      const batch = db.prepare(`
+        SELECT id, file_path FROM books
+        WHERE thumbnail_path IS NULL
+          AND needs_review = 0
+        LIMIT ?
+      `).all(THUMBNAIL_BATCH_SIZE);
 
-      for (const book of booksWithoutThumbnails) {
-        await this.generateThumbnailForBook(book);
+      if (batch.length === 0) return;
+
+      console.log(`🖼️  Generating thumbnails for ${batch.length} books`);
+
+      // pdf2pic shells out to Ghostscript, so these overlap on the CPU rather
+      // than blocking the event loop. A few at a time fills the grid quickly
+      // without starving the API.
+      for (let i = 0; i < batch.length; i += THUMBNAIL_CONCURRENCY) {
+        const slice = batch.slice(i, i + THUMBNAIL_CONCURRENCY);
+        await Promise.all(slice.map((book) => this.generateThumbnailForBook(book)));
       }
+
+      // More to do: keep going rather than waiting out the interval, so a
+      // freshly imported library gets its covers in minutes not hours.
+      if (batch.length === THUMBNAIL_BATCH_SIZE) {
+        setTimeout(() => this.generateMissingThumbnails(), 250);
+      }
+    } finally {
+      this.isGeneratingThumbnails = false;
     }
   }
 
@@ -432,6 +457,8 @@ class BackgroundTaskManager extends EventEmitter {
     if (this.scanInterval) clearInterval(this.scanInterval);
     if (this.processInterval) clearInterval(this.processInterval);
     if (this.thumbnailInterval) clearInterval(this.thumbnailInterval);
+
+    await processorPool.shutdown();
 
     console.log('✅ Background Task Manager shut down');
   }
