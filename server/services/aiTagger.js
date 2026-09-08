@@ -37,6 +37,15 @@ Rules:
   there to help you choose and must never appear in your answer.`;
 
 class AiTagger {
+  constructor() {
+    // Books tried this run. A book the model cannot classify stays untagged,
+    // and the untagged query always returns the same rows in id order, so
+    // without this the sweep re-processes the same handful forever once it
+    // reaches a run of books it cannot tag. Cleared on restart, which retries
+    // them — worth doing after a vocabulary or prompt change.
+    this.attempted = new Set();
+  }
+
   /** Assemble the evidence available for one book. */
   describeBook(book) {
     const parts = [`Title: ${book.title || 'Unknown'}`];
@@ -144,16 +153,38 @@ Reply as JSON: {"tags": ["tag1"]}`;
     return { bookId, title: book.title, tags, source, applied };
   }
 
-  /** Books that have no tags yet, oldest first. */
+  /** Books with no tags yet that have not already been tried this run. */
   untaggedBooks(limit) {
-    return db.prepare(`
+    const rows = db.prepare(`
       SELECT b.* FROM books b
       LEFT JOIN book_tags bt ON bt.book_id = b.id
       WHERE bt.book_id IS NULL
         AND b.needs_review = 0
       ORDER BY b.id
-      LIMIT ?
-    `).all(limit);
+    `).all();
+
+    const fresh = [];
+    for (const book of rows) {
+      if (this.attempted.has(book.id)) continue;
+      fresh.push(book);
+      if (fresh.length >= limit) break;
+    }
+
+    return fresh;
+  }
+
+  /** How many books are still worth attempting. */
+  countTaggable() {
+    return db.prepare(`
+      SELECT b.id FROM books b
+      LEFT JOIN book_tags bt ON bt.book_id = b.id
+      WHERE bt.book_id IS NULL AND b.needs_review = 0
+    `).all().filter((row) => !this.attempted.has(row.id)).length;
+  }
+
+  /** Forget what has been tried, so everything is reconsidered. */
+  resetAttempts() {
+    this.attempted.clear();
   }
 
   countUntagged() {
@@ -174,6 +205,8 @@ Reply as JSON: {"tags": ["tag1"]}`;
     const results = { tagged: 0, skipped: 0, bySource: { ai: 0, keywords: 0 } };
 
     for (const book of books) {
+      this.attempted.add(book.id);
+
       try {
         const { tags, source } = await this.suggest(book);
 
@@ -266,7 +299,8 @@ Reply as JSON: {"tags": ["tag1"]}`;
       model: ollama.model,
       host: ollama.host,
       vocabularySize: vocabulary.TAGS.length,
-      untagged: this.countUntagged()
+      untagged: this.countUntagged(),
+      taggable: this.countTaggable()
     };
   }
 }

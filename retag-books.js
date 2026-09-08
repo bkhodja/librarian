@@ -40,29 +40,35 @@ const limit = limitArg ? Number(limitArg.split('=')[1]) : Infinity;
     console.log(`Cleared ${changes} existing tag link(s) for a full re-tag`);
   }
 
-  let remaining = Math.min(aiTagger.countUntagged(), limit);
-  console.log(`\nTagging ${remaining} book(s)…\n`);
+  console.log(`\nTagging ${Math.min(aiTagger.countTaggable(), limit)} book(s)…\n`);
 
+  // Recomputed each pass rather than counted once: the server's own tagging
+  // sweep may be running against the same library, so a batch can come back
+  // smaller than asked for without meaning the work is finished.
   let done = 0;
-  while (done < remaining) {
-    const batch = Math.min(20, remaining - done);
+  while (done < limit) {
+    const batch = Math.min(20, limit - done);
     const result = await aiTagger.tagUntagged(batch, ({ book, tags, source }) => {
       console.log(`  [${source}] ${(book.title || '').slice(0, 46).padEnd(48)} ${tags.join(', ')}`);
     });
 
-    if (result.tagged === 0 && result.skipped === 0) break;
     done += result.tagged + result.skipped;
+
+    // Nothing left that has not already been tried.
+    if (aiTagger.countTaggable() === 0) break;
   }
 
   finish();
 })();
 
 function finish() {
+  const untried = aiTagger.countTaggable();
   const tagged = db.prepare('SELECT COUNT(DISTINCT book_id) AS c FROM book_tags').get().c;
   const total = db.prepare('SELECT COUNT(*) AS c FROM books').get().c;
   const tags = db.prepare('SELECT COUNT(*) AS c FROM tags').get().c;
 
-  console.log(`\n${tagged}/${total} books tagged across ${tags} tags`);
+  console.log(`\n${tagged}/${total} books tagged across ${tags} tags` +
+              (untried > 0 ? ` (${untried} still to try)` : ''));
   console.log('\nMost used:');
   db.prepare(`
     SELECT t.name, COUNT(bt.book_id) AS c FROM tags t

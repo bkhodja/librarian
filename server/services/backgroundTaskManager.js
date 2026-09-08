@@ -329,7 +329,9 @@ class BackgroundTaskManager extends EventEmitter {
     this.isTagging = true;
 
     try {
-      const remaining = aiTagger.countUntagged();
+      // Books the model could not classify stay untagged, so looping on the
+      // untagged count alone would re-process the same rows forever.
+      const remaining = aiTagger.countTaggable();
       if (remaining === 0) return;
 
       const status = await aiTagger.status();
@@ -351,7 +353,7 @@ class BackgroundTaskManager extends EventEmitter {
                   `(${result.bySource.ai} by model, ${result.bySource.keywords} by keywords)`);
 
       // Keep going while there is work, rather than waiting out the interval.
-      if (aiTagger.countUntagged() > 0) {
+      if (aiTagger.countTaggable() > 0) {
         setTimeout(() => this.tagUntaggedBooks(), 1000);
       }
     } catch (error) {
