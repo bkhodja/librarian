@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import StatusNote, { useStatus } from './StatusNote';
 
-const DuplicateManager = () => {
+const DuplicateManager = ({ onLibraryChanged }) => {
+  const notice = useStatus();
   const [duplicateGroups, setDuplicateGroups] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
@@ -32,7 +33,7 @@ const DuplicateManager = () => {
 
   const handleMerge = async (group) => {
     if (!keepBookId) {
-      status.info('Choose which copy to keep first');
+      notice.info('Choose which copy to keep first');
       return;
     }
 
@@ -41,7 +42,7 @@ const DuplicateManager = () => {
       .map(d => d.book.id);
 
     if (removeBookIds.length === 0) {
-      status.info('Nothing to merge — only one copy is selected');
+      notice.info('Nothing to merge — only one copy is selected');
       return;
     }
 
@@ -62,16 +63,18 @@ const DuplicateManager = () => {
       const data = await response.json();
 
       if (data.success) {
-        status.success(data.message);
-        fetchDuplicates(); // Refresh the list
+        notice.success(data.message);
+        fetchDuplicates();
         setSelectedGroup(null);
         setKeepBookId(null);
+        // Books were deleted; the library behind this modal is stale.
+        if (onLibraryChanged) onLibraryChanged();
       } else {
-        status.error(data.error || 'Could not merge these duplicates');
+        notice.error(data.error || 'Could not merge these duplicates');
       }
     } catch (error) {
       console.error('Failed to merge duplicates:', error);
-      status.error('Could not reach the server to merge');
+      notice.error('Could not reach the server to merge');
     }
   };
 
@@ -92,14 +95,15 @@ const DuplicateManager = () => {
       const data = await response.json();
 
       if (data.success) {
-        status.success(data.message);
-        fetchDuplicates(); // Refresh the list
+        notice.success(data.message);
+        fetchDuplicates();
+        if (onLibraryChanged) onLibraryChanged();
       } else {
-        status.error(data.error || 'Could not remove that book');
+        notice.error(data.error || 'Could not remove that book');
       }
     } catch (error) {
       console.error('Failed to remove book:', error);
-      status.error('Could not reach the server to remove that book');
+      notice.error('Could not reach the server to remove that book');
     }
   };
 
@@ -150,8 +154,8 @@ const DuplicateManager = () => {
               </div>
 
               <StatusNote
-                status={status.status}
-                onDismiss={status.clear}
+                status={notice.status}
+                onDismiss={notice.clear}
                 className="mb-4"
               />
 

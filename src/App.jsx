@@ -823,7 +823,12 @@ function App() {
               )}
 
               {/* Duplicate Manager */}
-              <DuplicateManager />
+              <DuplicateManager
+                onLibraryChanged={() => {
+                  loadBooks();
+                  setCollectionsRefreshKey((k) => k + 1);
+                }}
+              />
 
               {/* Full-text search toggle */}
               <button

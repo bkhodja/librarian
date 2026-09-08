@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import StatusNote, { useStatus } from './StatusNote';
 
 function CollectionsSidebar({ selectedCollection, onCollectionSelect, selectedBookIds, isSelectionMode, onBooksAdded, unseenCount = 0 }) {
-  const status = useStatus();
+  const notice = useStatus();
   const [suggestions, setSuggestions] = useState(null);
   const [suggesting, setSuggesting] = useState(false);
   const [collections, setCollections] = useState([]);
@@ -74,7 +74,7 @@ function CollectionsSidebar({ selectedCollection, onCollectionSelect, selectedBo
 
       if (response.ok) {
         const result = await response.json();
-        status.success(result.message);
+        notice.success(result.message);
         await loadCollections(); // Refresh counts
         if (onBooksAdded) {
           onBooksAdded(); // Trigger parent refresh
@@ -108,21 +108,21 @@ function CollectionsSidebar({ selectedCollection, onCollectionSelect, selectedBo
 
   const suggestShelves = async () => {
     setSuggesting(true);
-    status.clear();
+    notice.clear();
     try {
       const response = await fetch('http://localhost:3001/api/collections/suggest');
       const data = await response.json();
       if (!response.ok) {
-        status.error(data.error || 'Could not get suggestions');
+        notice.error(data.error || 'Could not get suggestions');
         return;
       }
       if (!data.collections?.length) {
-        status.info('Nothing to suggest yet — tag some books first.');
+        notice.info('Nothing to suggest yet — tag some books first.');
         return;
       }
       setSuggestions(data.collections);
     } catch {
-      status.error('Could not reach the server');
+      notice.error('Could not reach the server');
     } finally {
       setSuggesting(false);
     }
@@ -137,14 +137,14 @@ function CollectionsSidebar({ selectedCollection, onCollectionSelect, selectedBo
       });
       const data = await response.json();
       if (!response.ok) {
-        status.error(data.error || 'Could not create that shelf');
+        notice.error(data.error || 'Could not create that shelf');
         return;
       }
-      status.success(`Created "${data.name}" with ${data.added} book(s)`);
+      notice.success(`Created "${data.name}" with ${data.added} book(s)`);
       setSuggestions((current) => current.filter((c) => c.name !== proposal.name));
       loadCollections();
     } catch {
-      status.error('Could not reach the server');
+      notice.error('Could not reach the server');
     }
   };
 
@@ -166,7 +166,7 @@ function CollectionsSidebar({ selectedCollection, onCollectionSelect, selectedBo
           )}
         </div>
 
-        <StatusNote status={status.status} onDismiss={status.clear} className="mb-3" />
+        <StatusNote status={notice.status} onDismiss={notice.clear} className="mb-3" />
 
         <button
           onClick={suggestShelves}

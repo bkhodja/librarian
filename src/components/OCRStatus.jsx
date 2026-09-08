@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import StatusNote, { useStatus } from './StatusNote';
 
 const OCRStatus = () => {
+  const notice = useStatus();
   const [stats, setStats] = useState(null);
   const [showDetails, setShowDetails] = useState(false);
   const [queueItems, setQueueItems] = useState([]);
@@ -55,14 +56,14 @@ const OCRStatus = () => {
       const data = await response.json();
 
       if (data.success) {
-        status.success(`Queued ${data.queued} book(s) for OCR`);
+        notice.success(`Queued ${data.queued} book(s) for OCR`);
         fetchStats();
       } else {
-        status.error(data.message || 'Could not start batch OCR');
+        notice.error(data.message || 'Could not start batch OCR');
       }
     } catch (error) {
       console.error('Failed to start batch OCR:', error);
-      status.error('Could not reach the OCR service');
+      notice.error('Could not reach the OCR service');
     } finally {
       setLoading(false);
     }
@@ -76,7 +77,7 @@ const OCRStatus = () => {
       const data = await response.json();
 
       if (data.success) {
-        status.success(`Cleared ${data.cleared} completed job(s)`);
+        notice.success(`Cleared ${data.cleared} completed job(s)`);
         fetchStats();
         fetchQueueItems();
       }
@@ -93,7 +94,7 @@ const OCRStatus = () => {
       const data = await response.json();
 
       if (data.success) {
-        status.success('Failed jobs queued for another attempt');
+        notice.success('Failed jobs queued for another attempt');
         fetchStats();
         fetchQueueItems();
       }
@@ -196,8 +197,8 @@ const OCRStatus = () => {
             </div>
 
             <StatusNote
-              status={status.status}
-              onDismiss={status.clear}
+              status={notice.status}
+              onDismiss={notice.clear}
               className="mb-4"
             />
 

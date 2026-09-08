@@ -15,12 +15,12 @@ function AskBook({ book }) {
   const [answer, setAnswer] = useState(null);
   const [asking, setAsking] = useState(false);
   const [availability, setAvailability] = useState(null);
-  const status = useStatus();
+  const notice = useStatus();
 
   useEffect(() => {
     setAnswer(null);
     setQuestion('');
-    status.clear();
+    notice.clear();
 
     if (!book?.id) return;
     let cancelled = false;
@@ -39,7 +39,7 @@ function AskBook({ book }) {
 
     setAsking(true);
     setAnswer(null);
-    status.clear();
+    notice.clear();
 
     try {
       const response = await fetch(`http://localhost:3001/api/ask/${book.id}`, {
@@ -50,10 +50,10 @@ function AskBook({ book }) {
       const data = await response.json();
 
       if (data.answer) setAnswer(data);
-      else status.info(data.reason || data.error || 'No answer could be found');
+      else notice.info(data.reason || data.error || 'No answer could be found');
     } catch (error) {
       console.error('Ask failed:', error);
-      status.error('Could not reach the server');
+      notice.error('Could not reach the server');
     } finally {
       setAsking(false);
     }
@@ -102,7 +102,7 @@ function AskBook({ book }) {
         </button>
       </div>
 
-      <StatusNote status={status.status} onDismiss={status.clear} className="mt-2" />
+      <StatusNote status={notice.status} onDismiss={notice.clear} className="mt-2" />
 
       {asking && (
         <p className="mt-2 text-xs text-ink-faint">

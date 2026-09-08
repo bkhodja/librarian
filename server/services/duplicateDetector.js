@@ -329,7 +329,10 @@ class DuplicateDetector {
     }
 
     return {
-      kept: keepBook,
+      // Re-read rather than returning the snapshot taken before the merge:
+      // that copy still shows the empty fields the merge has just filled in,
+      // so the caller is told nothing happened when it did.
+      kept: db.getBookById(keepBookId),
       removed: booksToRemove.length
     };
   }
