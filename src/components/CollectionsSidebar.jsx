@@ -103,14 +103,14 @@ function CollectionsSidebar({ selectedCollection, onCollectionSelect, selectedBo
   };
 
   return (
-    <div className="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 h-screen sticky top-0 overflow-y-auto transition-colors duration-200">
-      <div className="p-4">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">Collections</h2>
+    <aside className="sticky top-0 h-screen w-56 shrink-0 overflow-y-auto border-r border-hairline bg-surface-sunken">
+      <div className="p-3">
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="px-2 text-2xs font-semibold uppercase tracking-wider text-ink-faint">Collections</h2>
           {!isCreating && (
             <button
               onClick={() => setIsCreating(true)}
-              className="text-blue-500 hover:text-blue-600"
+              className="flex h-6 w-6 items-center justify-center rounded text-ink-faint transition-colors hover:bg-surface-hover hover:text-ink"
               title="Create new collection"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -153,34 +153,30 @@ function CollectionsSidebar({ selectedCollection, onCollectionSelect, selectedBo
 
         {/* All Books */}
         <div
-          className={`p-3 rounded-lg cursor-pointer transition-colors ${
-            selectedCollection === null
-              ? 'bg-blue-50 dark:bg-blue-900 border border-blue-200 dark:border-blue-700'
-              : 'hover:bg-gray-50 dark:hover:bg-gray-700'
+          className={`flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm transition-colors cursor-pointer ${
+            selectedCollection === null ? 'bg-accent-soft text-accent-ink' : 'text-ink hover:bg-surface-hover'
           }`}
           onClick={() => onCollectionSelect(null)}
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
-              <span className="text-xl">📚</span>
-              <span className="font-medium text-gray-800 dark:text-gray-100">All Books</span>
+              <span className="text-base leading-none">📚</span>
+              <span className="flex-1">All Books</span>
             </div>
           </div>
         </div>
 
         {/* Currently Reading - Special Collection */}
         <div
-          className={`p-3 rounded-lg cursor-pointer transition-colors ${
-            selectedCollection === 'currently-reading'
-              ? 'bg-blue-50 dark:bg-blue-900 border border-blue-200 dark:border-blue-700'
-              : 'hover:bg-gray-50 dark:hover:bg-gray-700'
+          className={`flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm transition-colors cursor-pointer ${
+            selectedCollection === 'currently-reading' ? 'bg-accent-soft text-accent-ink' : 'text-ink hover:bg-surface-hover'
           }`}
           onClick={() => onCollectionSelect('currently-reading')}
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
-              <span className="text-xl">📖</span>
-              <span className="font-medium text-gray-800 dark:text-gray-100">Currently Reading</span>
+              <span className="text-base leading-none">📖</span>
+              <span className="flex-1">Currently Reading</span>
             </div>
           </div>
         </div>
@@ -190,19 +186,17 @@ function CollectionsSidebar({ selectedCollection, onCollectionSelect, selectedBo
           {collections.map((collection) => (
             <div key={collection.id} className="group relative">
               <div
-                className={`p-3 rounded-lg cursor-pointer transition-colors ${
-                  selectedCollection === collection.id
-                    ? 'bg-blue-50 dark:bg-blue-900 border border-blue-200 dark:border-blue-700'
-                    : 'hover:bg-gray-50 dark:hover:bg-gray-700'
+                className={`flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm transition-colors cursor-pointer ${
+                  selectedCollection === collection.id ? 'bg-accent-soft text-accent-ink' : 'text-ink hover:bg-surface-hover'
                 }`}
                 onClick={() => onCollectionSelect(collection.id)}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
-                    <span className="text-xl">{collection.icon || '📁'}</span>
+                    <span className="text-base leading-none">{collection.icon || '📁'}</span>
                     <div>
-                      <div className="font-medium text-gray-800 dark:text-gray-100">{collection.name}</div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400">{collection.book_count || 0} books</div>
+                      <div className="truncate">{collection.name}</div>
+                      
                     </div>
                   </div>
                   <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -242,17 +236,17 @@ function CollectionsSidebar({ selectedCollection, onCollectionSelect, selectedBo
 
         {/* Quick add to collection when in selection mode */}
         {isSelectionMode && selectedBookIds.size > 0 && (
-          <div className="mt-6 p-3 bg-blue-50 dark:bg-blue-900 rounded-lg">
-            <p className="text-sm text-blue-800 dark:text-blue-200 mb-2">
+          <div className="mt-5 rounded-md bg-accent-soft px-2.5 py-2">
+            <p className="text-xs font-medium text-accent-ink">
               {selectedBookIds.size} book{selectedBookIds.size !== 1 ? 's' : ''} selected
             </p>
-            <p className="text-xs text-blue-600 dark:text-blue-300">
-              Click the + icon next to a collection to add selected books
+            <p className="mt-1 text-2xs leading-snug text-ink-muted">
+              Use the + beside a collection to add them
             </p>
           </div>
         )}
       </div>
-    </div>
+    </aside>
   );
 }
 

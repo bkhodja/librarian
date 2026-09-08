@@ -487,7 +487,7 @@ function App() {
   }, [selectedCollection]);
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex transition-colors duration-200">
+    <div className="flex min-h-screen bg-canvas text-ink">
       {/* Collections Sidebar */}
       <CollectionsSidebar
         key={collectionsRefreshKey}
@@ -505,13 +505,16 @@ function App() {
       {/* Main Content */}
       <div className="flex-1">
         {/* Header */}
-        <header className="sticky top-0 z-50 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm transition-colors duration-200">
-        <div className="px-6 py-4">
+        <header className="sticky top-0 z-50 border-b border-hairline bg-surface/85 shadow-bar backdrop-blur-md">
+        <div className="px-6 py-3 lg:px-8">
           <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-semibold text-gray-800 dark:text-gray-100">
-              Librarian {selectedCollection && <span className="text-lg text-gray-600 dark:text-gray-400 ml-2">/ Collection</span>}
+            <h1 className="flex items-baseline gap-2 text-lg font-semibold tracking-tight text-ink">
+              Librarian
+              {selectedCollection && (
+                <span className="text-sm font-normal text-ink-faint">/ Collection</span>
+              )}
             </h1>
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center gap-1.5">
               {/* Multi-select controls */}
               {isSelectionMode && (
                 <div className="flex items-center space-x-2">
@@ -546,11 +549,7 @@ function App() {
               {/* Full-text search toggle */}
               <button
                 onClick={() => setShowFullTextSearch(!showFullTextSearch)}
-                className={`p-2 rounded-lg transition-colors ${
-                  showFullTextSearch
-                    ? 'bg-blue-500 text-white hover:bg-blue-600'
-                    : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
-                }`}
+                className={showFullTextSearch ? 'flex h-8 w-8 items-center justify-center rounded-md bg-accent-soft text-accent-ink transition-colors' : 'flex h-8 w-8 items-center justify-center rounded-md text-ink-muted transition-colors hover:bg-surface-hover hover:text-ink'}
                 title={showFullTextSearch ? 'Close full-text search' : 'Open full-text search'}
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -561,11 +560,7 @@ function App() {
               {/* Reading stats toggle */}
               <button
                 onClick={() => setShowReadingStats(!showReadingStats)}
-                className={`p-2 rounded-lg transition-colors ${
-                  showReadingStats
-                    ? 'bg-purple-500 text-white hover:bg-purple-600'
-                    : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
-                }`}
+                className={showReadingStats ? 'flex h-8 w-8 items-center justify-center rounded-md bg-accent-soft text-accent-ink transition-colors' : 'flex h-8 w-8 items-center justify-center rounded-md text-ink-muted transition-colors hover:bg-surface-hover hover:text-ink'}
                 title={showReadingStats ? 'Close reading statistics' : 'Open reading statistics'}
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -576,7 +571,7 @@ function App() {
               {/* Preferences button */}
               <button
                 onClick={() => setIsPreferencesOpen(true)}
-                className="p-2 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                className="flex h-8 w-8 items-center justify-center rounded-md text-ink-muted transition-colors hover:bg-surface-hover hover:text-ink"
                 title="Preferences"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -588,7 +583,7 @@ function App() {
               {/* Dark mode toggle */}
               <button
                 onClick={toggleDarkMode}
-                className="p-2 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                className="flex h-8 w-8 items-center justify-center rounded-md text-ink-muted transition-colors hover:bg-surface-hover hover:text-ink"
                 title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
               >
                 {isDark ? (
@@ -602,19 +597,19 @@ function App() {
                 )}
               </button>
 
-              <span className="text-sm text-gray-600 dark:text-gray-400">
+              <span className="hidden shrink-0 text-xs tabular-nums text-ink-faint sm:inline">
                 {loading ? 'Loading...' : (searchQuery || selectedTag || selectedAuthor || selectedFileType) ? `${filteredAndSortedBooks.length} of ${books.length}` : `${totalBooks || books.length} books`}
               </span>
               <input
                 type="text"
                 placeholder="Search books..."
-                className="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
+                className="h-8 w-52 rounded-md border border-hairline bg-surface-sunken px-3 text-sm text-ink placeholder:text-ink-faint focus:border-accent focus:bg-surface focus:outline-none"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
               <button
                 onClick={() => setIsSelectionMode(!isSelectionMode)}
-                className={`px-4 py-2 rounded-lg transition-colors ${isSelectionMode ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'}`}
+                className={`h-8 shrink-0 rounded-md px-3 text-sm font-medium transition-colors ${isSelectionMode ? 'bg-accent text-white' : 'text-ink-muted hover:bg-surface-hover hover:text-ink'}`}
               >
                 {isSelectionMode ? '✓ Selecting' : 'Select'}
               </button>
@@ -624,14 +619,13 @@ function App() {
       </header>
 
       {/* Filter Bar - Also sticky below the header */}
-      <div className="sticky top-16 z-40 bg-gray-100 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-3 shadow-sm transition-colors duration-200">
-        <div className="flex items-center space-x-4">
+      <div className="sticky top-[3.25rem] z-40 border-b border-hairline bg-canvas/90 px-6 py-2 backdrop-blur-md lg:px-8">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           {/* Tag Filter */}
           {allTags.length > 0 && (
-            <div className="flex items-center space-x-2">
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Tag:</label>
+            <div className="flex items-center gap-1.5">
               <select
-                className="px-3 py-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="h-7 max-w-[12rem] rounded-md border border-hairline bg-surface px-2 text-xs text-ink transition-colors hover:border-ink-faint focus:border-accent focus:outline-none"
                 value={selectedTag}
                 onChange={(e) => setSelectedTag(e.target.value)}
               >
@@ -645,10 +639,9 @@ function App() {
 
           {/* Author Filter */}
           {allAuthors.length > 0 && (
-            <div className="flex items-center space-x-2">
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Author:</label>
+            <div className="flex items-center gap-1.5">
               <select
-                className="px-3 py-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="h-7 max-w-[12rem] rounded-md border border-hairline bg-surface px-2 text-xs text-ink transition-colors hover:border-ink-faint focus:border-accent focus:outline-none"
                 value={selectedAuthor}
                 onChange={(e) => setSelectedAuthor(e.target.value)}
               >
@@ -661,10 +654,9 @@ function App() {
           )}
 
           {/* File Type Filter */}
-          <div className="flex items-center space-x-2">
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Type:</label>
+          <div className="flex items-center gap-1.5">
             <select
-              className="px-3 py-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="h-7 max-w-[12rem] rounded-md border border-hairline bg-surface px-2 text-xs text-ink transition-colors hover:border-ink-faint focus:border-accent focus:outline-none"
               value={selectedFileType}
               onChange={(e) => setSelectedFileType(e.target.value)}
             >
@@ -677,10 +669,9 @@ function App() {
 
           {/* Language Filter */}
           {allLanguages.length > 0 && (
-            <div className="flex items-center space-x-2">
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Language:</label>
+            <div className="flex items-center gap-1.5">
               <select
-                className="px-3 py-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="h-7 max-w-[12rem] rounded-md border border-hairline bg-surface px-2 text-xs text-ink transition-colors hover:border-ink-faint focus:border-accent focus:outline-none"
                 value={selectedLanguage}
                 onChange={(e) => setSelectedLanguage(e.target.value)}
               >
@@ -693,10 +684,9 @@ function App() {
           )}
 
           {/* Sort Options */}
-          <div className="flex items-center space-x-2">
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Sort by:</label>
+          <div className="flex items-center gap-1.5">
             <select
-              className="px-3 py-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="h-7 max-w-[12rem] rounded-md border border-hairline bg-surface px-2 text-xs text-ink transition-colors hover:border-ink-faint focus:border-accent focus:outline-none"
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
             >
@@ -707,7 +697,7 @@ function App() {
             </select>
             <button
               onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-              className="px-2 py-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+              className="flex h-7 w-7 items-center justify-center rounded-md border border-hairline bg-surface text-ink-muted transition-colors hover:border-ink-faint hover:text-ink"
               title={`Sort ${sortOrder === 'asc' ? 'Descending' : 'Ascending'}`}
             >
               {sortOrder === 'asc' ? '↑' : '↓'}
@@ -723,9 +713,9 @@ function App() {
                 setSelectedFileType('');
                 setSelectedLanguage('');
               }}
-              className="px-3 py-1 bg-red-500 dark:bg-red-600 text-white rounded-md text-sm hover:bg-red-600 dark:hover:bg-red-700 transition-colors"
+              className="h-7 rounded-md px-2.5 text-xs font-medium text-accent-ink transition-colors hover:bg-accent-soft"
             >
-              Clear Filters
+              Clear filters
             </button>
           )}
         </div>
@@ -733,7 +723,7 @@ function App() {
 
       {/* Full-text Search Section */}
       {showFullTextSearch && (
-        <div className="container mx-auto px-6 py-4">
+        <div className="px-6 py-4 lg:px-8">
           <FullTextSearch
             isDark={isDark}
             onSearchResults={(results) => {
@@ -746,31 +736,27 @@ function App() {
 
       {/* Reading Statistics Section */}
       {showReadingStats && (
-        <div className="container mx-auto px-6 py-4">
+        <div className="px-6 py-4 lg:px-8">
           <ReadingStatsDashboard isDark={isDark} />
         </div>
       )}
 
       {/* Main Content */}
-      <main className="container mx-auto px-6 py-8">
+      <main className="px-6 py-6 lg:px-8">
         {loading ? (
           <div className="flex items-center justify-center h-64">
-            <div className="text-lg text-gray-600 dark:text-gray-400">Scanning library...</div>
+            <div className="text-sm text-ink-muted">Scanning library…</div>
           </div>
         ) : !books || books.length === 0 ? (
           <div className="text-center py-16">
-            <div className="text-gray-500 dark:text-gray-400 text-lg">
-              Loading library...
-            </div>
+            <div className="text-sm text-ink-muted">Loading library…</div>
           </div>
         ) : filteredAndSortedBooks.length === 0 ? (
           <div className="text-center py-16">
-            <div className="text-gray-500 dark:text-gray-400 text-lg">
-              No books match your filters.
-            </div>
+            <div className="text-sm text-ink-muted">No books match your filters.</div>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-4 lg:gap-6">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 lg:gap-4">
             {visibleBooks.map((book) => (
               <BookCard
                 key={book.id}
@@ -808,7 +794,7 @@ function App() {
         )}
 
         {!loading && visibleBooks.length < filteredAndSortedBooks.length && (
-          <div ref={loadMoreRef} className="py-8 text-center text-gray-500 dark:text-gray-400">
+          <div ref={loadMoreRef} className="py-10 text-center text-xs text-ink-faint">
             Loading more books…
           </div>
         )}

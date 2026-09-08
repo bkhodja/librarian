@@ -120,7 +120,7 @@ const DuplicateManager = () => {
       {/* Duplicate Detection Button */}
       <button
         onClick={() => setShowModal(true)}
-        className="px-3 py-1 bg-purple-500 dark:bg-purple-600 text-white rounded-md text-sm hover:bg-purple-600 dark:hover:bg-purple-700 transition-colors"
+        className="h-8 shrink-0 rounded-md px-2.5 text-sm font-medium text-ink-muted transition-colors hover:bg-surface-hover hover:text-ink"
       >
         Find Duplicates
       </button>
