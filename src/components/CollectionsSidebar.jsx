@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-function CollectionsSidebar({ selectedCollection, onCollectionSelect, selectedBookIds, isSelectionMode, onBooksAdded }) {
+function CollectionsSidebar({ selectedCollection, onCollectionSelect, selectedBookIds, isSelectionMode, onBooksAdded, unseenCount = 0 }) {
   const [collections, setCollections] = useState([]);
   const [isCreating, setIsCreating] = useState(false);
   const [newCollectionName, setNewCollectionName] = useState('');
@@ -158,12 +158,27 @@ function CollectionsSidebar({ selectedCollection, onCollectionSelect, selectedBo
           }`}
           onClick={() => onCollectionSelect(null)}
         >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <span className="text-base leading-none">📚</span>
-              <span className="flex-1">All Books</span>
-            </div>
-          </div>
+          <span className="text-base leading-none">📚</span>
+          <span className="flex-1">All Books</span>
+        </div>
+
+        {/* Recently Added - a view over the library, not a stored collection */}
+        <div
+          className={`flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm transition-colors cursor-pointer ${
+            selectedCollection === 'recently-added' ? 'bg-accent-soft text-accent-ink' : 'text-ink hover:bg-surface-hover'
+          }`}
+          onClick={() => onCollectionSelect('recently-added')}
+        >
+          <span className="text-base leading-none">🆕</span>
+          <span className="flex-1">Recently Added</span>
+          {unseenCount > 0 && (
+            <span
+              className="rounded-full bg-accent px-1.5 py-0.5 text-2xs font-semibold tabular-nums text-white"
+              title={`${unseenCount} added since you last looked`}
+            >
+              {unseenCount > 99 ? '99+' : unseenCount}
+            </span>
+          )}
         </div>
 
         {/* Currently Reading - Special Collection */}
@@ -173,12 +188,8 @@ function CollectionsSidebar({ selectedCollection, onCollectionSelect, selectedBo
           }`}
           onClick={() => onCollectionSelect('currently-reading')}
         >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <span className="text-base leading-none">📖</span>
-              <span className="flex-1">Currently Reading</span>
-            </div>
-          </div>
+          <span className="text-base leading-none">📖</span>
+          <span className="flex-1">Currently Reading</span>
         </div>
 
         {/* Collections List */}

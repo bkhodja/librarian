@@ -16,7 +16,8 @@ const BookCard = ({
   onDoubleClick,
   onClick,
   onRemoveFromCollection,
-  selectedCollection
+  selectedCollection,
+  newForDays = 3
 }) => {
   const [imageError, setImageError] = useState(false);
 
@@ -26,6 +27,13 @@ const BookCard = ({
 
   const needsAttention = !book.language || book.language === 'Not scanned';
   const isScanned = book.pdf_type === 'scanned';
+
+  // Recent arrivals are worth pointing out while browsing normally. Unlike the
+  // badges this card used to carry, this one is self-limiting: it appears on a
+  // few books for a few days and then goes away on its own.
+  const isNew = book.date_added
+    ? Date.now() - new Date(book.date_added).getTime() < (newForDays * 86400000)
+    : false;
 
   const showCover = book.thumbnail_url && !imageError;
 
@@ -78,8 +86,16 @@ const BookCard = ({
 
         {/* Flags for the two states worth interrupting for. Everything else
             lives in the detail modal. */}
-        {(needsAttention || isScanned) && (
+        {(isNew || needsAttention || isScanned) && (
           <div className="absolute left-2 top-2 flex gap-1">
+            {isNew && (
+              <span
+                className="rounded bg-accent px-1.5 py-0.5 text-2xs font-semibold text-white shadow-sm"
+                title={`Added ${new Date(book.date_added).toLocaleDateString()}`}
+              >
+                New
+              </span>
+            )}
             {needsAttention && (
               <span
                 className="rounded bg-amber-500/95 px-1.5 py-0.5 text-2xs font-semibold text-white shadow-sm"

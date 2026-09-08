@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import BookDetailModal from './components/BookDetailModal';
 import BookCard from './components/BookCard';
+import FilterSelect from './components/FilterSelect';
 import BulkActionsModal from './components/BulkActionsModal';
 import CollectionsSidebar from './components/CollectionsSidebar';
 import FullTextSearch from './components/FullTextSearch';
@@ -20,6 +21,37 @@ const PAGE_SIZE = 60;
 // lightweight (about 1KB per book) and only PAGE_SIZE cards are rendered at a
 // time, so the cost is the transfer, not the DOM.
 const LIBRARY_FETCH_LIMIT = 100000;
+
+const SEEN_KEY = 'librarian:booksSeenAt';
+
+// Books added within this window are worth pointing out on the card.
+const NEW_BOOK_DAYS = 3;
+
+const startOfDay = (value) => {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? null
+    : new Date(date.getFullYear(), date.getMonth(), date.getDate());
+};
+
+/** "Today", "Yesterday", then a written date. */
+function dayLabel(value) {
+  const day = startOfDay(value);
+  if (!day) return 'Date unknown';
+
+  const today = startOfDay(new Date());
+  const days = Math.round((today - day) / 86400000);
+
+  if (days === 0) return 'Today';
+  if (days === 1) return 'Yesterday';
+  if (days < 7) return `${days} days ago`;
+
+  return day.toLocaleDateString(undefined, {
+    day: 'numeric',
+    month: 'long',
+    year: day.getFullYear() === today.getFullYear() ? undefined : 'numeric'
+  });
+}
 
 function App() {
   const { isDark, toggleDarkMode } = useDarkMode();
@@ -62,6 +94,17 @@ function App() {
   // screenful and extend as the sentinel below the grid scrolls into view.
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [totalBooks, setTotalBooks] = useState(0);
+
+  // When the library was last looked at, so "Recently Added" can say how many
+  // books have arrived since. Per-viewer and cosmetic, so localStorage rather
+  // than a column on the database.
+  const [booksSeenAt, setBooksSeenAt] = useState(() => {
+    try {
+      return localStorage.getItem(SEEN_KEY) || null;
+    } catch {
+      return null;
+    }
+  });
   const loadMoreRef = React.useRef(null);
 
   // User preferences state
@@ -127,7 +170,13 @@ function App() {
         counts.set(tag, (counts.get(tag) || 0) + 1);
       }
     }
-    return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+
+    // Ordered by name, not by count. Counts change under the user — the
+    // background tagger revises them whenever books are added — and reordering
+    // a <select>'s options while one is chosen moves the selection to whatever
+    // lands at that index. Alphabetical is stable and easy to scan; the count
+    // beside each tag still says how many books it will show.
+    return [...counts.entries()].sort((a, b) => a[0].localeCompare(b[0]));
   }, [books]);
 
   const allTags = React.useMemo(() => tagCounts.map(([tag]) => tag), [tagCounts]);
@@ -195,13 +244,74 @@ function App() {
       return sortOrder === 'asc' ? compareValue : -compareValue;
     });
 
+    // Newest first is the whole point of this view, so it ignores the sort
+    // control rather than letting a stale "Title A-Z" hide what just arrived.
+    if (selectedCollection === 'recently-added') {
+      return [...filtered].sort(
+        (a, b) => new Date(b.date_added || 0) - new Date(a.date_added || 0)
+      );
+    }
+
     return filtered;
-  }, [books, searchQuery, selectedTag, selectedAuthor, selectedFileType, selectedLanguage, sortBy, sortOrder, userPreferences]);
+  }, [books, searchQuery, selectedTag, selectedAuthor, selectedFileType, selectedLanguage, sortBy, sortOrder, userPreferences, selectedCollection]);
 
   const visibleBooks = React.useMemo(
     () => filteredAndSortedBooks.slice(0, visibleCount),
     [filteredAndSortedBooks, visibleCount]
   );
+
+  const isRecentView = selectedCollection === 'recently-added';
+
+  // Books added since the library was last opened.
+  const unseenCount = React.useMemo(() => {
+    if (!booksSeenAt) return 0;
+    const since = new Date(booksSeenAt).getTime();
+    return books.filter((b) => b.date_added && new Date(b.date_added).getTime() > since).length;
+  }, [books, booksSeenAt]);
+
+  // In the recent view the grid is broken into days, so a daily habit of
+  // adding books reads as a timeline rather than one long undifferentiated
+  // run of covers. Grouping the already-sliced list keeps it compatible with
+  // the incremental rendering below.
+  const booksByDay = React.useMemo(() => {
+    if (!isRecentView) return null;
+
+    // How many books each day holds in total. Counted over the whole filtered
+    // list rather than the rendered slice, so a day still reads "375 books"
+    // when only the first 60 have been drawn.
+    const totals = new Map();
+    for (const book of filteredAndSortedBooks) {
+      const label = dayLabel(book.date_added);
+      totals.set(label, (totals.get(label) || 0) + 1);
+    }
+
+    const groups = [];
+    let current = null;
+
+    for (const book of visibleBooks) {
+      const label = dayLabel(book.date_added);
+      if (!current || current.label !== label) {
+        current = { label, books: [], total: totals.get(label) || 0 };
+        groups.push(current);
+      }
+      current.books.push(book);
+    }
+
+    return groups;
+  }, [isRecentView, visibleBooks, filteredAndSortedBooks]);
+
+  // Opening the view marks the library as seen, which clears the badge.
+  useEffect(() => {
+    if (!isRecentView) return;
+
+    const now = new Date().toISOString();
+    try {
+      localStorage.setItem(SEEN_KEY, now);
+    } catch {
+      // Private browsing or blocked storage: the badge simply stays put.
+    }
+    setBooksSeenAt(now);
+  }, [isRecentView, books.length]);
 
   // A new filter or sort should start from the top again.
   useEffect(() => {
@@ -379,6 +489,13 @@ function App() {
           setBooks([]);
           setCollectionBooks([]);
         }
+      } else if (selectedCollection === 'recently-added') {
+        // A view over the whole library rather than a stored collection.
+        const response = await fetch(`http://localhost:3001/api/books?limit=${LIBRARY_FETCH_LIMIT}`);
+        const data = await response.json();
+        setBooks(data.books || []);
+        setTotalBooks(data.pagination?.total ?? (data.books || []).length);
+        setCollectionBooks([]);
       } else if (selectedCollection) {
         // Regular collection
         const response = await fetch(`http://localhost:3001/api/collections/${selectedCollection}`);
@@ -496,6 +613,41 @@ function App() {
     loadBooks();
   }, [selectedCollection]);
 
+  const renderBookCard = (book) => (
+              <BookCard
+                key={book.id}
+                book={book}
+                isSelected={selectedBookIds.has(book.id)}
+                onSelect={isSelectionMode || selectedBookIds.size > 0 ? (id, checked) => {
+                  if (checked) {
+                    setSelectedBookIds(new Set([...selectedBookIds, id]));
+                  } else {
+                    const newSet = new Set(selectedBookIds);
+                    newSet.delete(id);
+                    setSelectedBookIds(newSet);
+                  }
+                } : null}
+                onDoubleClick={() => handleReadPDF(book)}
+                onClick={() => {
+                  if (isSelectionMode) {
+                    const newSet = new Set(selectedBookIds);
+                    if (newSet.has(book.id)) {
+                      newSet.delete(book.id);
+                    } else {
+                      newSet.add(book.id);
+                    }
+                    setSelectedBookIds(newSet);
+                  } else {
+                    setSelectedBook(book);
+                    setIsModalOpen(true);
+                  }
+                }}
+                onRemoveFromCollection={selectedCollection ? removeBookFromCollection : null}
+                selectedCollection={selectedCollection}
+                newForDays={NEW_BOOK_DAYS}
+              />
+  );
+
   return (
     <div className="flex min-h-screen bg-canvas text-ink">
       {/* Collections Sidebar */}
@@ -503,6 +655,7 @@ function App() {
         key={collectionsRefreshKey}
         selectedCollection={selectedCollection}
         onCollectionSelect={setSelectedCollection}
+        unseenCount={unseenCount}
         selectedBookIds={selectedBookIds}
         isSelectionMode={isSelectionMode}
         onBooksAdded={() => {
@@ -521,7 +674,13 @@ function App() {
             <h1 className="flex items-baseline gap-2 text-lg font-semibold tracking-tight text-ink">
               Librarian
               {selectedCollection && (
-                <span className="text-sm font-normal text-ink-faint">/ Collection</span>
+                <span className="text-sm font-normal text-ink-faint">
+                  / {selectedCollection === 'recently-added'
+                    ? 'Recently Added'
+                    : selectedCollection === 'currently-reading'
+                      ? 'Currently Reading'
+                      : 'Collection'}
+                </span>
               )}
             </h1>
             <div className="flex items-center gap-1.5">
@@ -633,64 +792,45 @@ function App() {
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           {/* Tag Filter */}
           {allTags.length > 0 && (
-            <div className="flex items-center gap-1.5">
-              <select
-                className="h-7 max-w-[12rem] rounded-md border border-hairline bg-surface px-2 text-xs text-ink transition-colors hover:border-ink-faint focus:border-accent focus:outline-none"
-                value={selectedTag}
-                onChange={(e) => setSelectedTag(e.target.value)}
-              >
-                <option value="">All tags</option>
-                {tagCounts.map(([tag, count]) => (
-                  <option key={tag} value={tag}>{tag} ({count})</option>
-                ))}
-              </select>
-            </div>
+            <FilterSelect
+              className="h-7 max-w-[12rem] rounded-md border border-hairline bg-surface px-2 text-xs text-ink transition-colors hover:border-ink-faint focus:border-accent focus:outline-none"
+              value={selectedTag}
+              onChange={(e) => setSelectedTag(e.target.value)}
+              placeholder="All tags"
+              title="Filter by subject tag"
+              options={tagCounts.map(([tag, count]) => ({ value: tag, label: `${tag} (${count})` }))}
+            />
           )}
 
           {/* Author Filter */}
           {allAuthors.length > 0 && (
-            <div className="flex items-center gap-1.5">
-              <select
-                className="h-7 max-w-[12rem] rounded-md border border-hairline bg-surface px-2 text-xs text-ink transition-colors hover:border-ink-faint focus:border-accent focus:outline-none"
-                value={selectedAuthor}
-                onChange={(e) => setSelectedAuthor(e.target.value)}
-              >
-                <option value="">All Authors</option>
-                {allAuthors.map(author => (
-                  <option key={author} value={author}>{author}</option>
-                ))}
-              </select>
-            </div>
+            <FilterSelect
+              className="h-7 max-w-[12rem] rounded-md border border-hairline bg-surface px-2 text-xs text-ink transition-colors hover:border-ink-faint focus:border-accent focus:outline-none"
+              value={selectedAuthor}
+              onChange={(e) => setSelectedAuthor(e.target.value)}
+              placeholder="All Authors"
+              options={allAuthors.map((author) => ({ value: author, label: author }))}
+            />
           )}
 
           {/* File Type Filter */}
-          <div className="flex items-center gap-1.5">
-            <select
-              className="h-7 max-w-[12rem] rounded-md border border-hairline bg-surface px-2 text-xs text-ink transition-colors hover:border-ink-faint focus:border-accent focus:outline-none"
-              value={selectedFileType}
-              onChange={(e) => setSelectedFileType(e.target.value)}
-            >
-              <option value="">All Types</option>
-              {allFileTypes.map(type => (
-                <option key={type} value={type}>{type.toUpperCase()}</option>
-              ))}
-            </select>
-          </div>
+          <FilterSelect
+            className="h-7 max-w-[12rem] rounded-md border border-hairline bg-surface px-2 text-xs text-ink transition-colors hover:border-ink-faint focus:border-accent focus:outline-none"
+            value={selectedFileType}
+            onChange={(e) => setSelectedFileType(e.target.value)}
+            placeholder="All Types"
+            options={allFileTypes.map((type) => ({ value: type, label: type.toUpperCase() }))}
+          />
 
           {/* Language Filter */}
           {allLanguages.length > 0 && (
-            <div className="flex items-center gap-1.5">
-              <select
-                className="h-7 max-w-[12rem] rounded-md border border-hairline bg-surface px-2 text-xs text-ink transition-colors hover:border-ink-faint focus:border-accent focus:outline-none"
-                value={selectedLanguage}
-                onChange={(e) => setSelectedLanguage(e.target.value)}
-              >
-                <option value="">All Languages</option>
-                {allLanguages.map(lang => (
-                  <option key={lang} value={lang}>{lang}</option>
-                ))}
-              </select>
-            </div>
+            <FilterSelect
+              className="h-7 max-w-[12rem] rounded-md border border-hairline bg-surface px-2 text-xs text-ink transition-colors hover:border-ink-faint focus:border-accent focus:outline-none"
+              value={selectedLanguage}
+              onChange={(e) => setSelectedLanguage(e.target.value)}
+              placeholder="All Languages"
+              options={allLanguages.map((lang) => ({ value: lang, label: lang }))}
+            />
           )}
 
           {/* Sort Options */}
@@ -766,41 +906,31 @@ function App() {
             <div className="text-sm text-ink-muted">No books match your filters.</div>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 lg:gap-4">
-            {visibleBooks.map((book) => (
-              <BookCard
-                key={book.id}
-                book={book}
-                isSelected={selectedBookIds.has(book.id)}
-                onSelect={isSelectionMode || selectedBookIds.size > 0 ? (id, checked) => {
-                  if (checked) {
-                    setSelectedBookIds(new Set([...selectedBookIds, id]));
-                  } else {
-                    const newSet = new Set(selectedBookIds);
-                    newSet.delete(id);
-                    setSelectedBookIds(newSet);
-                  }
-                } : null}
-                onDoubleClick={() => handleReadPDF(book)}
-                onClick={() => {
-                  if (isSelectionMode) {
-                    const newSet = new Set(selectedBookIds);
-                    if (newSet.has(book.id)) {
-                      newSet.delete(book.id);
-                    } else {
-                      newSet.add(book.id);
-                    }
-                    setSelectedBookIds(newSet);
-                  } else {
-                    setSelectedBook(book);
-                    setIsModalOpen(true);
-                  }
-                }}
-                onRemoveFromCollection={selectedCollection ? removeBookFromCollection : null}
-                selectedCollection={selectedCollection}
-              />
-            ))}
-          </div>
+          booksByDay ? (
+            /* Newest first, split by the day each book arrived. */
+            <div className="space-y-8">
+              {booksByDay.map((group) => (
+                <section key={group.label}>
+                  <div className="mb-3 flex items-baseline gap-3">
+                    <h2 className="text-xs font-semibold uppercase tracking-wider text-ink-muted">
+                      {group.label}
+                    </h2>
+                    <span className="text-2xs tabular-nums text-ink-faint">
+                      {group.total} {group.total === 1 ? 'book' : 'books'}
+                    </span>
+                    <span className="h-px flex-1 bg-hairline" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 lg:gap-4">
+                    {group.books.map(renderBookCard)}
+                  </div>
+                </section>
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 lg:gap-4">
+              {visibleBooks.map(renderBookCard)}
+            </div>
+          )
         )}
 
         {!loading && visibleBooks.length < filteredAndSortedBooks.length && (
