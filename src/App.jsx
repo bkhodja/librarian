@@ -12,6 +12,8 @@ import DuplicateManager from './components/DuplicateManager';
 import PreferencesModal from './components/PreferencesModal';
 import useDarkMode from './hooks/useDarkMode';
 
+const PAGE_SIZE = 60;
+
 function App() {
   const { isDark, toggleDarkMode } = useDarkMode();
   const [books, setBooks] = useState([]);
@@ -47,6 +49,12 @@ function App() {
 
   // Preferences modal state
   const [isPreferencesOpen, setIsPreferencesOpen] = useState(false);
+
+  // Number of cards actually rendered. Mounting the whole library at once
+  // meant hundreds of cards and images before anything appeared; render a
+  // screenful and extend as the sentinel below the grid scrolls into view.
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const loadMoreRef = React.useRef(null);
 
   // User preferences state
   const [userPreferences, setUserPreferences] = useState({
@@ -172,6 +180,34 @@ function App() {
     return filtered;
   }, [books, searchQuery, selectedTag, selectedAuthor, selectedFileType, selectedLanguage, sortBy, sortOrder, userPreferences]);
 
+  const visibleBooks = React.useMemo(
+    () => filteredAndSortedBooks.slice(0, visibleCount),
+    [filteredAndSortedBooks, visibleCount]
+  );
+
+  // A new filter or sort should start from the top again.
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [searchQuery, selectedTag, selectedAuthor, selectedFileType, selectedLanguage, sortBy, sortOrder, selectedCollection]);
+
+  // Extend the rendered slice when the sentinel below the grid comes into view.
+  useEffect(() => {
+    const sentinel = loadMoreRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          setVisibleCount((count) => count + PAGE_SIZE);
+        }
+      },
+      { rootMargin: '400px' }
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [visibleBooks.length, filteredAndSortedBooks.length]);
+
   // Fetch user preferences on mount
   useEffect(() => {
     const fetchPreferences = async () => {
@@ -188,10 +224,8 @@ function App() {
   }, []);
 
   useEffect(() => {
-    // Load books on mount
-    loadBooks();
-
-    // Set up auto-refresh to check for new books added by background tasks
+    // Auto-refresh to pick up books added by background tasks. The initial
+    // load is handled by the selectedCollection effect below.
     const refreshInterval = setInterval(() => {
       loadBooks();
     }, 30000); // Refresh every 30 seconds
@@ -441,11 +475,7 @@ function App() {
     }
   };
 
-  useEffect(() => {
-    loadBooks();
-  }, []);
-
-  // Reload books when selected collection changes
+  // Also covers the initial load, so no separate mount effect is needed.
   useEffect(() => {
     loadBooks();
   }, [selectedCollection]);
@@ -735,7 +765,7 @@ function App() {
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-4 lg:gap-6">
-            {filteredAndSortedBooks.map((book) => (
+            {visibleBooks.map((book) => (
               <BookCard
                 key={book.id}
                 book={book}
@@ -768,6 +798,12 @@ function App() {
                 selectedCollection={selectedCollection}
               />
             ))}
+          </div>
+        )}
+
+        {!loading && visibleBooks.length < filteredAndSortedBooks.length && (
+          <div ref={loadMoreRef} className="py-8 text-center text-gray-500 dark:text-gray-400">
+            Loading more books…
           </div>
         )}
       </main>

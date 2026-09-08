@@ -1,17 +1,24 @@
 import React, { useState, useEffect, useCallback } from 'react';
 
 function ReadingProgress({ book, className = '', compact = false, onUpdate }) {
-  const [progress, setProgress] = useState(null);
+  const [progress, setProgress] = useState(book?.readingProgress || null);
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [currentPage, setCurrentPage] = useState(0);
+  const [currentPage, setCurrentPage] = useState(book?.readingProgress?.current_page || 0);
 
-  // Fetch progress on mount or when book changes
+  // The book listing carries progress with it, so a grid of cards costs no
+  // extra requests. Only fetch when it was not supplied.
   useEffect(() => {
-    if (book?.id) {
-      fetchProgress();
+    if (!book?.id) return;
+
+    if (book.readingProgress) {
+      setProgress(book.readingProgress);
+      setCurrentPage(book.readingProgress.current_page || 0);
+      return;
     }
-  }, [book?.id]);
+
+    fetchProgress();
+  }, [book?.id, book?.readingProgress]);
 
   const fetchProgress = async () => {
     try {
