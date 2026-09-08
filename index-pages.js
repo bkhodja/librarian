@@ -32,6 +32,9 @@ async function indexPages() {
     }
   } else {
     // Index books that haven't been indexed yet
+    // ePUBs have no pdf_type, so restricting to 'searchable' skipped every one
+    // of them. They carry text and are worth indexing; scanned PDFs are not,
+    // since they hold images and need OCR first.
     booksToIndex = db.prepare(`
       SELECT b.id, b.title
       FROM books b
@@ -40,7 +43,10 @@ async function indexPages() {
         FROM book_pages
       ) bp ON b.id = bp.book_id
       WHERE bp.book_id IS NULL
-        AND b.pdf_type = 'searchable'
+        AND (
+          b.pdf_type IN ('searchable', 'mixed')
+          OR lower(b.file_path) LIKE '%.epub'
+        )
       LIMIT ?
     `).all(limit);
   }
