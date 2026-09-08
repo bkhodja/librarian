@@ -128,13 +128,13 @@ function CollectionsSidebar({ selectedCollection, onCollectionSelect, selectedBo
               onChange={(e) => setNewCollectionName(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && createCollection()}
               placeholder="Collection name..."
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-hairline bg-surface text-ink rounded-md focus:outline-none focus:ring-2 focus:ring-accent"
               autoFocus
             />
             <div className="flex space-x-2 mt-2">
               <button
                 onClick={createCollection}
-                className="px-3 py-1 bg-blue-500 text-white text-sm rounded hover:bg-blue-600"
+                className="px-3 py-1 bg-accent text-white text-sm rounded hover:bg-accent-hover"
               >
                 Create
               </button>
@@ -143,7 +143,7 @@ function CollectionsSidebar({ selectedCollection, onCollectionSelect, selectedBo
                   setIsCreating(false);
                   setNewCollectionName('');
                 }}
-                className="px-3 py-1 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300"
+                className="px-3 py-1 rounded border border-hairline text-sm text-ink-muted hover:bg-surface-hover hover:text-ink"
               >
                 Cancel
               </button>
@@ -206,7 +206,7 @@ function CollectionsSidebar({ selectedCollection, onCollectionSelect, selectedBo
                           e.stopPropagation();
                           addSelectedBooksToCollection(collection.id);
                         }}
-                        className="p-1 text-green-600 hover:bg-green-50 rounded"
+                        className="p-1 text-green-600 hover:bg-emerald-500/10 rounded"
                         title="Add selected books"
                         disabled={loading}
                       >
@@ -220,7 +220,7 @@ function CollectionsSidebar({ selectedCollection, onCollectionSelect, selectedBo
                         e.stopPropagation();
                         deleteCollection(collection.id);
                       }}
-                      className="p-1 text-red-600 hover:bg-red-50 rounded"
+                      className="p-1 text-red-600 hover:bg-red-500/10 rounded"
                       title="Delete collection"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

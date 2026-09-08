@@ -343,11 +343,11 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-white rounded-lg p-6 max-w-3xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/25 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div className="rounded-xl bg-surface ring-1 ring-hairline shadow-2xl p-6 max-w-3xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex justify-between items-start mb-4">
-          <h2 className="text-2xl font-bold text-gray-800">Book Details</h2>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
+          <h2 className="text-2xl font-bold text-ink">Book Details</h2>
+          <button onClick={onClose} className="text-ink-faint transition-colors hover:text-ink">
             ✕
           </button>
         </div>
@@ -356,63 +356,63 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
           <div className="space-y-4">
             {/* Title */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+              <label className="block text-sm font-medium text-ink-muted mb-1">Title</label>
               {isEditing ? (
                 <input
                   type="text"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-hairline rounded-md focus:outline-none focus:ring-2 focus:ring-accent"
                   value={editedBook.title || ''}
                   onChange={(e) => setEditedBook({ ...editedBook, title: e.target.value })}
                 />
               ) : (
-                <p className="text-gray-900">{book.title || 'Untitled'}</p>
+                <p className="text-ink">{book.title || 'Untitled'}</p>
               )}
             </div>
 
             {/* Author */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Author</label>
+              <label className="block text-sm font-medium text-ink-muted mb-1">Author</label>
               {isEditing ? (
                 <input
                   type="text"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-hairline rounded-md focus:outline-none focus:ring-2 focus:ring-accent"
                   value={editedBook.author || ''}
                   onChange={(e) => setEditedBook({ ...editedBook, author: e.target.value })}
                 />
               ) : (
-                <p className="text-gray-900">{book.author || 'Unknown Author'}</p>
+                <p className="text-ink">{book.author || 'Unknown Author'}</p>
               )}
             </div>
 
             {/* ISBN and Publisher */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">ISBN</label>
+                <label className="block text-sm font-medium text-ink-muted mb-1">ISBN</label>
                 {isEditing ? (
                   <input
                     type="text"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-hairline rounded-md focus:outline-none focus:ring-2 focus:ring-accent"
                     value={editedBook.isbn || ''}
                     onChange={(e) => setEditedBook({ ...editedBook, isbn: e.target.value })}
                     placeholder="978-0-123456-78-9"
                   />
                 ) : (
-                  <p className="text-gray-900 font-mono">{book.isbn || 'Not available'}</p>
+                  <p className="text-ink font-mono">{book.isbn || 'Not available'}</p>
                 )}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Publisher</label>
+                <label className="block text-sm font-medium text-ink-muted mb-1">Publisher</label>
                 {isEditing ? (
                   <input
                     type="text"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-hairline rounded-md focus:outline-none focus:ring-2 focus:ring-accent"
                     value={editedBook.publisher || ''}
                     onChange={(e) => setEditedBook({ ...editedBook, publisher: e.target.value })}
                     placeholder="Publisher name"
                   />
                 ) : (
-                  <p className="text-gray-900">{book.publisher || 'Unknown'}</p>
+                  <p className="text-ink">{book.publisher || 'Unknown'}</p>
                 )}
               </div>
             </div>
@@ -420,26 +420,26 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
             {/* Edition and Description */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Edition</label>
+                <label className="block text-sm font-medium text-ink-muted mb-1">Edition</label>
                 {isEditing ? (
                   <input
                     type="text"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-hairline rounded-md focus:outline-none focus:ring-2 focus:ring-accent"
                     value={editedBook.edition || ''}
                     onChange={(e) => setEditedBook({ ...editedBook, edition: e.target.value })}
                     placeholder="e.g. 2nd Edition"
                   />
                 ) : (
-                  <p className="text-gray-900">{book.edition || 'Not specified'}</p>
+                  <p className="text-ink">{book.edition || 'Not specified'}</p>
                 )}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Publication Year</label>
+                <label className="block text-sm font-medium text-ink-muted mb-1">Publication Year</label>
                 {isEditing ? (
                   <input
                     type="number"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-hairline rounded-md focus:outline-none focus:ring-2 focus:ring-accent"
                     value={editedBook.publication_year || ''}
                     onChange={(e) => setEditedBook({ ...editedBook, publication_year: e.target.value ? parseInt(e.target.value) : null })}
                     placeholder="e.g. 2024"
@@ -447,7 +447,7 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
                     max={new Date().getFullYear()}
                   />
                 ) : (
-                  <p className="text-gray-900">{book.publication_year || 'Unknown'}</p>
+                  <p className="text-ink">{book.publication_year || 'Unknown'}</p>
                 )}
               </div>
             </div>
@@ -455,17 +455,17 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
             {/* Description */}
             {(book.description || isEditing) && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <label className="block text-sm font-medium text-ink-muted mb-1">Description</label>
                 {isEditing ? (
                   <textarea
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-hairline rounded-md focus:outline-none focus:ring-2 focus:ring-accent"
                     value={editedBook.description || ''}
                     onChange={(e) => setEditedBook({ ...editedBook, description: e.target.value })}
                     placeholder="Book description..."
                     rows="3"
                   />
                 ) : (
-                  <p className="text-gray-900 text-sm">{book.description}</p>
+                  <p className="text-ink text-sm">{book.description}</p>
                 )}
               </div>
             )}
@@ -473,10 +473,10 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
             {/* AI Summary */}
             <div className="pt-2">
               <div className="flex items-center justify-between mb-2">
-                <label className="block text-sm font-medium text-gray-700">AI Summary</label>
+                <label className="block text-sm font-medium text-ink-muted">AI Summary</label>
                 <div className="flex items-center gap-2">
                   {summary && (
-                    <span className="text-xs text-gray-400">
+                    <span className="text-xs text-ink-faint">
                       {summary.model_name === 'extractive-local' ? 'Excerpt' : 'AI'} · {summary.strategy}
                     </span>
                   )}
@@ -484,7 +484,7 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
                     <button
                       onClick={() => handleGenerateSummary(true)}
                       disabled={loadingSummary}
-                      className="px-3 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300 disabled:opacity-50"
+                      className="px-3 py-1 rounded border border-hairline text-xs text-ink-muted hover:bg-surface-hover hover:text-ink disabled:opacity-50"
                     >
                       {loadingSummary ? 'Generating...' : 'Regenerate'}
                     </button>
@@ -492,7 +492,7 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
                     <button
                       onClick={() => handleGenerateSummary(false)}
                       disabled={loadingSummary}
-                      className="px-3 py-1 text-xs bg-purple-500 text-white rounded hover:bg-purple-600 disabled:opacity-50"
+                      className="px-3 py-1 text-xs bg-accent text-white rounded hover:bg-accent-hover disabled:opacity-50"
                     >
                       {loadingSummary ? 'Generating...' : summaryAvailable ? 'Generate AI Summary' : 'Generate Summary'}
                     </button>
@@ -500,25 +500,25 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
                 </div>
               </div>
               {loadingSummary && (
-                <div className="flex items-center gap-2 p-3 bg-purple-50 rounded-md">
-                  <div className="w-4 h-4 border-t-2 border-purple-500 border-solid rounded-full animate-spin"></div>
-                  <span className="text-sm text-purple-700">Generating summary...</span>
+                <div className="flex items-center gap-2 p-3 bg-accent-soft rounded-md">
+                  <div className="w-4 h-4 border-t-2 border-accent border-solid rounded-full animate-spin"></div>
+                  <span className="text-sm text-accent-ink">Generating summary...</span>
                 </div>
               )}
               {summary && !loadingSummary && (
-                <div className="p-3 bg-gray-50 rounded-md">
+                <div className="p-3 bg-surface-sunken rounded-md">
                   {summary.summary_short && (
-                    <p className="text-sm font-medium text-gray-800 mb-2 italic">
+                    <p className="text-sm font-medium text-ink mb-2 italic">
                       {summary.summary_short}
                     </p>
                   )}
-                  <div className="text-sm text-gray-700 whitespace-pre-line">
+                  <div className="text-sm text-ink-muted whitespace-pre-line">
                     {summary.summary}
                   </div>
                 </div>
               )}
               {!summary && !loadingSummary && !summaryAvailable && (
-                <p className="text-xs text-gray-400 italic">
+                <p className="text-xs text-ink-faint italic">
                   Set ANTHROPIC_API_KEY in .env for AI-powered summaries, or click Generate for an extractive summary.
                 </p>
               )}
@@ -527,10 +527,10 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
             {/* Metadata Grid */}
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Language</label>
+                <label className="block text-sm font-medium text-ink-muted mb-1">Language</label>
                 {isEditing ? (
                   <select
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-hairline rounded-md focus:outline-none focus:ring-2 focus:ring-accent"
                     value={editedBook.language || ''}
                     onChange={(e) => setEditedBook({ ...editedBook, language: e.target.value })}
                   >
@@ -541,37 +541,37 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
                     <option value="Other">Other</option>
                   </select>
                 ) : (
-                  <p className="text-gray-900">{book.language || 'Unknown'}</p>
+                  <p className="text-ink">{book.language || 'Unknown'}</p>
                 )}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Pages</label>
-                <p className="text-gray-900">{book.page_count || 'Unknown'}</p>
+                <label className="block text-sm font-medium text-ink-muted mb-1">Pages</label>
+                <p className="text-ink">{book.page_count || 'Unknown'}</p>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">PDF Type</label>
-                <p className="text-gray-900">{book.pdf_type || 'Unknown'}</p>
+                <label className="block text-sm font-medium text-ink-muted mb-1">PDF Type</label>
+                <p className="text-ink">{book.pdf_type || 'Unknown'}</p>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">File Size</label>
-                <p className="text-gray-900">
+                <label className="block text-sm font-medium text-ink-muted mb-1">File Size</label>
+                <p className="text-ink">
                   {book.file_size ? `${(book.file_size / 1024 / 1024).toFixed(2)} MB` : 'Unknown'}
                 </p>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Date Added</label>
-                <p className="text-gray-900">
+                <label className="block text-sm font-medium text-ink-muted mb-1">Date Added</label>
+                <p className="text-ink">
                   {book.date_added ? new Date(book.date_added).toLocaleDateString() : 'Unknown'}
                 </p>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Last Modified</label>
-                <p className="text-gray-900">
+                <label className="block text-sm font-medium text-ink-muted mb-1">Last Modified</label>
+                <p className="text-ink">
                   {book.last_modified ? new Date(book.last_modified).toLocaleDateString() : 'Unknown'}
                 </p>
               </div>
@@ -579,23 +579,23 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
 
             {/* File Path */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">File Path</label>
-              <p className="text-gray-600 text-sm break-all">{book.file_path}</p>
+              <label className="block text-sm font-medium text-ink-muted mb-1">File Path</label>
+              <p className="text-ink-muted text-sm break-all">{book.file_path}</p>
             </div>
 
             {/* Adult Content Flag */}
             {isEditing && (
-              <div className="flex items-center p-3 bg-orange-50 border border-orange-200 rounded-md">
+              <div className="flex items-center p-3 bg-orange-500/10 border border-orange-200 rounded-md">
                 <input
                   type="checkbox"
                   id="is_adult"
                   checked={editedBook.is_adult === 1}
                   onChange={(e) => setEditedBook({ ...editedBook, is_adult: e.target.checked ? 1 : 0 })}
-                  className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded"
+                  className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-hairline rounded"
                 />
-                <label htmlFor="is_adult" className="ml-2 block text-sm text-gray-900">
+                <label htmlFor="is_adult" className="ml-2 block text-sm text-ink">
                   <span className="font-medium">Mark as Adult Content</span>
-                  <span className="block text-xs text-gray-500 mt-1">
+                  <span className="block text-xs text-ink-faint mt-1">
                     Adult books will be hidden when "Hide Adult Content" is enabled in preferences
                   </span>
                 </label>
@@ -604,18 +604,18 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
 
             {/* Tags */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Tags</label>
+              <label className="block text-sm font-medium text-ink-muted mb-2">Tags</label>
               <div className="flex flex-wrap gap-2 mb-2">
                 {tags.map(tag => (
                   <span
                     key={tag.id}
-                    className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm flex items-center gap-1"
+                    className="px-3 py-1 bg-accent-soft text-accent-ink rounded-full text-sm flex items-center gap-1"
                   >
                     {tag.name}
                     {isEditing && (
                       <button
                         onClick={() => handleRemoveTag(tag.id)}
-                        className="ml-1 text-blue-600 hover:text-blue-800"
+                        className="ml-1 text-accent-ink hover:text-accent-ink"
                       >
                         ×
                       </button>
@@ -628,21 +628,21 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
                   <input
                     type="text"
                     placeholder="Add a tag..."
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="flex-1 px-3 py-2 border border-hairline rounded-md focus:outline-none focus:ring-2 focus:ring-accent"
                     value={newTag}
                     onChange={(e) => setNewTag(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && handleAddTag()}
                   />
                   <button
                     onClick={handleAddTag}
-                    className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+                    className="px-4 py-2 bg-accent text-white rounded-md hover:bg-accent-hover"
                   >
                     Add
                   </button>
                   <button
                     onClick={fetchTagSuggestions}
                     disabled={loadingSuggestions}
-                    className="px-4 py-2 bg-purple-500 text-white rounded-md hover:bg-purple-600 disabled:opacity-50"
+                    className="px-4 py-2 bg-accent text-white rounded-md hover:bg-accent-hover disabled:opacity-50"
                   >
                     {loadingSuggestions ? 'Loading...' : 'Suggest'}
                   </button>
@@ -651,12 +651,12 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
 
               {/* Tag Suggestions */}
               {tagSuggestions.length > 0 && (
-                <div className="mt-3 p-3 bg-purple-50 rounded-md border border-purple-200">
+                <div className="mt-3 p-3 bg-accent-soft rounded-md ring-1 ring-hairline">
                   <div className="flex justify-between items-center mb-2">
-                    <span className="text-sm font-medium text-gray-700">Suggested Tags:</span>
+                    <span className="text-sm font-medium text-ink-muted">Suggested Tags:</span>
                     <button
                       onClick={applyAllSuggestions}
-                      className="text-xs px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600"
+                      className="text-xs px-3 py-1 bg-emerald-500/100 text-white rounded hover:bg-green-600"
                     >
                       Apply All
                     </button>
@@ -666,7 +666,7 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
                       <button
                         key={suggestion}
                         onClick={() => applyTagSuggestion(suggestion)}
-                        className="px-3 py-1 bg-white border border-purple-300 text-purple-800 rounded-full text-sm hover:bg-purple-100 transition-colors"
+                        className="px-3 py-1 bg-surface border border-hairline text-accent-ink rounded-full text-sm hover:bg-accent-soft transition-colors"
                         title="Click to add this tag"
                       >
                         + {suggestion}
@@ -679,7 +679,7 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
 
             {/* Collections */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Collections</label>
+              <label className="block text-sm font-medium text-ink-muted mb-2">Collections</label>
               <div className="flex flex-wrap gap-2">
                 {collections.map(collection => {
                   const isInCollection = bookCollections.some(c => c.id === collection.id);
@@ -689,8 +689,8 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
                       onClick={() => toggleCollection(collection.id)}
                       className={`px-4 py-2 rounded-lg border-2 transition-all ${
                         isInCollection
-                          ? 'bg-blue-500 text-white border-blue-500'
-                          : 'bg-white text-gray-700 border-gray-300 hover:border-blue-500'
+                          ? 'bg-accent text-white border-accent'
+                          : 'bg-surface text-ink-muted border-hairline hover:border-accent'
                       }`}
                     >
                       <span className="mr-2">{collection.icon || '📁'}</span>
@@ -701,24 +701,24 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
                 })}
               </div>
               {collections.length === 0 && (
-                <p className="text-gray-500 text-sm italic">No collections available</p>
+                <p className="text-ink-faint text-sm italic">No collections available</p>
               )}
             </div>
 
             {/* Status Indicators */}
             <div className="flex gap-4">
               {book.needs_review === 1 && (
-                <span className="px-3 py-1 bg-red-100 text-red-800 rounded-full text-sm">
+                <span className="px-3 py-1 bg-red-500/100/10 text-red-700 dark:text-red-300 rounded-full text-sm">
                   ⚠️ Needs Review
                 </span>
               )}
               {book.metadata_source && (
-                <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm">
+                <span className="px-3 py-1 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 rounded-full text-sm">
                   📚 {book.metadata_source}
                 </span>
               )}
               {book.average_rating && (
-                <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+                <span className="px-3 py-1 bg-accent-soft text-accent-ink rounded-full text-sm">
                   ⭐ {book.average_rating.toFixed(1)}
                 </span>
               )}
@@ -727,10 +727,10 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
             {/* Categories if available */}
             {book.categories && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Categories</label>
+                <label className="block text-sm font-medium text-ink-muted mb-1">Categories</label>
                 <div className="flex flex-wrap gap-2">
                   {JSON.parse(book.categories).map((category, index) => (
-                    <span key={index} className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-sm">
+                    <span key={index} className="px-2 py-1 bg-surface-sunken text-ink-muted rounded text-sm">
                       {category}
                     </span>
                   ))}
@@ -754,12 +754,12 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
             {/* Similar Books */}
             {similarBooks.length > 0 && (
               <div className="pt-4 border-t">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Similar Books</label>
+                <label className="block text-sm font-medium text-ink-muted mb-2">Similar Books</label>
                 <div className="space-y-2">
                   {similarBooks.map(similar => (
                     <div
                       key={similar.id}
-                      className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
+                      className="flex items-center gap-3 p-2 rounded-lg hover:bg-surface-sunken cursor-pointer transition-colors"
                       onClick={() => {
                         // Navigate to similar book
                         window.location.href = `#book-${similar.id}`;
@@ -773,12 +773,12 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
                         />
                       )}
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-800 truncate">{similar.title}</p>
+                        <p className="text-sm font-medium text-ink truncate">{similar.title}</p>
                         {similar.author && (
-                          <p className="text-xs text-gray-500 truncate">{similar.author}</p>
+                          <p className="text-xs text-ink-faint truncate">{similar.author}</p>
                         )}
                       </div>
-                      <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded text-xs whitespace-nowrap">
+                      <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 dark:text-emerald-300 rounded text-xs whitespace-nowrap">
                         {Math.round(similar.similarity * 100)}%
                       </span>
                     </div>
@@ -788,7 +788,7 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
             )}
             {loadingSimilar && (
               <div className="pt-4 border-t">
-                <p className="text-sm text-gray-500">Finding similar books...</p>
+                <p className="text-sm text-ink-faint">Finding similar books...</p>
               </div>
             )}
 
@@ -797,7 +797,7 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
               <div className="flex gap-2">
                 <button
                   onClick={handleOpenFile}
-                  className="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600"
+                  className="px-4 py-2 rounded-md border border-hairline text-ink-muted hover:bg-surface-hover hover:text-ink"
                 >
                   Open PDF
                 </button>
@@ -805,7 +805,7 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
                 {onRead && (
                   <button
                     onClick={onRead}
-                    className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+                    className="px-4 py-2 bg-accent text-white rounded-md hover:bg-accent-hover"
                   >
                     📖 Read
                   </button>
@@ -816,8 +816,8 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
                   disabled={isEnrichingMetadata}
                   className={`px-4 py-2 rounded-md text-white ${
                     isEnrichingMetadata
-                      ? 'bg-gray-400 cursor-not-allowed'
-                      : 'bg-purple-500 hover:bg-purple-600'
+                      ? 'bg-ink-faint cursor-not-allowed'
+                      : 'bg-accent hover:bg-accent-hover'
                   }`}
                 >
                   {isEnrichingMetadata ? 'Fetching...' : 'Fetch Metadata'}
@@ -829,13 +829,13 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
                   <>
                     <button
                       onClick={() => setIsEditing(false)}
-                      className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+                      className="px-4 py-2 border border-hairline rounded-md hover:bg-surface-sunken"
                     >
                       Cancel
                     </button>
                     <button
                       onClick={handleSave}
-                      className="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600"
+                      className="px-4 py-2 bg-emerald-500/100 text-white rounded-md hover:bg-green-600"
                     >
                       Save
                     </button>
@@ -843,7 +843,7 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
                 ) : (
                   <button
                     onClick={() => setIsEditing(true)}
-                    className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+                    className="px-4 py-2 bg-accent text-white rounded-md hover:bg-accent-hover"
                   >
                     Edit
                   </button>

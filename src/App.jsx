@@ -518,25 +518,25 @@ function App() {
               {/* Multi-select controls */}
               {isSelectionMode && (
                 <div className="flex items-center space-x-2">
-                  <span className="text-sm font-medium text-blue-600">
+                  <span className="text-sm font-medium text-accent-ink">
                     {selectedBookIds.size} selected
                   </span>
                   <button
                     onClick={selectAllVisible}
-                    className="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                    className="px-3 py-1 text-sm bg-accent-soft text-blue-700 rounded hover:bg-blue-200"
                   >
                     Select All
                   </button>
                   <button
                     onClick={clearSelection}
-                    className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+                    className="px-3 py-1 text-sm bg-surface-sunken text-ink-muted rounded hover:bg-surface-hover"
                   >
                     Clear
                   </button>
                   <button
                     onClick={() => setIsBulkActionsModalOpen(true)}
                     disabled={selectedBookIds.size === 0}
-                    className="px-3 py-1 text-sm bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50"
+                    className="px-3 py-1 text-sm bg-emerald-500/100 text-white rounded hover:bg-green-600 disabled:opacity-50"
                   >
                     Bulk Actions
                   </button>

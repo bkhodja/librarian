@@ -136,16 +136,16 @@ const EpubViewer = ({ bookId, filePath, onClose }) => {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-90 z-50 flex flex-col">
       {/* Header */}
-      <div className="bg-gray-900 text-white p-4 flex justify-between items-center">
+      <div className="bg-[#16181d] text-white px-4 py-3 flex justify-between items-center border-b border-white/10">
         <div className="flex items-center space-x-4">
           <span className="text-lg font-semibold">ePUB Reader</span>
-          <span className="text-sm text-gray-400">
+          <span className="text-sm text-ink-faint">
             {currentPage > 0 && `${currentPage}% read`}
           </span>
         </div>
         <button
           onClick={handleClose}
-          className="p-2 hover:bg-gray-700 rounded transition-colors"
+          className="p-2 hover:bg-white/10 rounded transition-colors"
           title="Close (Esc)"
         >
           <FaTimes />
@@ -153,7 +153,7 @@ const EpubViewer = ({ bookId, filePath, onClose }) => {
       </div>
 
       {/* Reader */}
-      <div className="flex-1 relative bg-white">
+      <div className="flex-1 relative bg-surface">
         <ReactReader
           url={`http://localhost:3001/pdf${filePath}`}
           location={location}
@@ -176,8 +176,8 @@ const EpubViewer = ({ bookId, filePath, onClose }) => {
       </div>
 
       {/* Footer */}
-      <div className="bg-gray-900 text-white p-2 text-center text-sm">
-        <span className="text-gray-400">
+      <div className="bg-[#16181d] text-white p-2 text-center text-xs border-t border-white/10">
+        <span className="text-ink-faint">
           Use arrow keys to navigate • Press Esc to exit
         </span>
       </div>

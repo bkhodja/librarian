@@ -232,11 +232,11 @@ function PDFViewer({ book, filePath, isOpen, onClose, isDark, searchTerm = null,
   return (
     <div className="fixed inset-0 z-50 bg-black/95 flex flex-col">
       {/* Header */}
-      <div className="bg-gray-900 text-white p-4 flex items-center justify-between shadow-lg">
+      <div className="bg-[#16181d] text-white px-4 py-3 flex items-center justify-between border-b border-white/10">
         <div className="flex items-center gap-4">
           <button
             onClick={handleClose}
-            className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
+            className="p-2 hover:bg-white/10 rounded-lg transition-colors"
             title="Close (Esc)"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -245,7 +245,7 @@ function PDFViewer({ book, filePath, isOpen, onClose, isDark, searchTerm = null,
           </button>
           <div>
             <h2 className="text-lg font-semibold">{book?.title || 'PDF Viewer'}</h2>
-            <div className="text-sm text-gray-400">
+            <div className="text-sm text-ink-faint">
               {book?.author && <span>{book.author} • </span>}
               Page {pageNumber} of {numPages || '...'}
             </div>
@@ -255,10 +255,10 @@ function PDFViewer({ book, filePath, isOpen, onClose, isDark, searchTerm = null,
         {/* Progress Bar */}
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-400">Progress:</span>
-            <div className="w-32 bg-gray-700 rounded-full h-2 overflow-hidden">
+            <span className="text-sm text-ink-faint">Progress:</span>
+            <div className="w-32 bg-white/15 rounded-full h-2 overflow-hidden">
               <div
-                className="h-full bg-green-500 transition-all duration-300"
+                className="h-full bg-emerald-500/100 transition-all duration-300"
                 style={{ width: `${progressPercentage}%` }}
               />
             </div>
@@ -276,7 +276,7 @@ function PDFViewer({ book, filePath, isOpen, onClose, isDark, searchTerm = null,
               setAutoFitMode(false);
               setScale(s => Math.max(s - 0.1, 0.5));
             }}
-            className="p-2 hover:bg-gray-700 rounded"
+            className="p-2 hover:bg-white/10 rounded"
             title="Zoom Out (-)"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -291,7 +291,7 @@ function PDFViewer({ book, filePath, isOpen, onClose, isDark, searchTerm = null,
               setAutoFitMode(false);
               setScale(s => Math.min(s + 0.1, 2.5));
             }}
-            className="p-2 hover:bg-gray-700 rounded"
+            className="p-2 hover:bg-white/10 rounded"
             title="Zoom In (+)"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -304,7 +304,7 @@ function PDFViewer({ book, filePath, isOpen, onClose, isDark, searchTerm = null,
               // Trigger a resize event to recalculate optimal scale
               window.dispatchEvent(new Event('resize'));
             }}
-            className={`px-3 py-1 text-sm rounded ${autoFitMode ? 'bg-blue-600' : 'hover:bg-gray-700'}`}
+            className={`px-3 py-1 text-sm rounded ${autoFitMode ? 'bg-accent' : 'hover:bg-white/10'}`}
           >
             Auto Fit
           </button>
@@ -314,7 +314,7 @@ function PDFViewer({ book, filePath, isOpen, onClose, isDark, searchTerm = null,
       {/* PDF Content */}
       <div
         ref={containerRef}
-        className="flex-1 overflow-auto bg-gray-800 flex justify-center items-start p-4"
+        className="flex-1 overflow-auto bg-[#1f2229] flex justify-center items-start p-6"
       >
         <Document
           file={pdfUrl}
@@ -323,7 +323,7 @@ function PDFViewer({ book, filePath, isOpen, onClose, isDark, searchTerm = null,
           loading={
             <div className="text-white text-center p-8">
               <div className="text-xl mb-2">Loading PDF...</div>
-              <div className="text-gray-400">Please wait</div>
+              <div className="text-ink-faint">Please wait</div>
             </div>
           }
           error={
@@ -344,12 +344,12 @@ function PDFViewer({ book, filePath, isOpen, onClose, isDark, searchTerm = null,
       </div>
 
       {/* Navigation Footer */}
-      <div className="bg-gray-900 text-white p-4 flex items-center justify-between">
+      <div className="bg-[#16181d] text-white px-4 py-3 flex items-center justify-between border-t border-white/10">
         <div className="flex items-center gap-4">
           <button
             onClick={() => changePage(-1)}
             disabled={pageNumber <= 1}
-            className="px-4 py-2 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors flex items-center gap-2"
+            className="px-3 py-1.5 bg-white/10 hover:bg-white/20 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors flex items-center gap-2"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -367,15 +367,15 @@ function PDFViewer({ book, filePath, isOpen, onClose, isDark, searchTerm = null,
               }}
               min="1"
               max={numPages}
-              className="w-20 px-2 py-1 bg-gray-700 border border-gray-600 rounded text-center"
+              className="w-16 px-2 py-1 bg-white/10 border border-white/15 rounded text-center"
             />
-            <span className="text-gray-400">/ {numPages}</span>
+            <span className="text-ink-faint">/ {numPages}</span>
           </div>
 
           <button
             onClick={() => changePage(1)}
             disabled={pageNumber >= numPages}
-            className="px-4 py-2 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors flex items-center gap-2"
+            className="px-3 py-1.5 bg-white/10 hover:bg-white/20 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors flex items-center gap-2"
           >
             Next
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -385,7 +385,7 @@ function PDFViewer({ book, filePath, isOpen, onClose, isDark, searchTerm = null,
         </div>
 
         {/* Reading Info */}
-        <div className="text-sm text-gray-400">
+        <div className="text-sm text-ink-faint">
           {progress?.started_reading && (
             <span>
               Started: {new Date(progress.started_reading).toLocaleDateString()}
@@ -397,7 +397,7 @@ function PDFViewer({ book, filePath, isOpen, onClose, isDark, searchTerm = null,
         </div>
 
         {/* Keyboard Shortcuts Help */}
-        <div className="text-xs text-gray-500">
+        <div className="text-xs text-ink-faint">
           Use ← → or Space to navigate • +/- to zoom • Esc to close
         </div>
       </div>
