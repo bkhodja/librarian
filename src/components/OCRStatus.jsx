@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import StatusNote, { useStatus } from './StatusNote';
+import ModalPortal from './ModalPortal';
 
 const OCRStatus = () => {
   const notice = useStatus();
@@ -187,127 +188,129 @@ const OCRStatus = () => {
 
       {/* OCR Queue Details Modal */}
       {showDetails && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/25 p-4 backdrop-blur-sm">
-          <div className="rounded-xl bg-surface ring-1 ring-hairline shadow-2xl p-6 max-w-4xl w-full max-h-[80vh] overflow-hidden flex flex-col">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-ink">
-                OCR Processing Queue
-              </h2>
-              <button
-                onClick={() => setShowDetails(false)}
-                className="text-ink-faint transition-colors hover:text-ink"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            <StatusNote
-              status={notice.status}
-              onDismiss={notice.clear}
-              className="mb-4"
-            />
-
-            {/* Statistics */}
-            <div className="grid grid-cols-4 gap-4 mb-6">
-              <div className="bg-surface-sunken p-3 rounded">
-                <div className="text-2xl font-bold text-yellow-600">{stats.queue.pending}</div>
-                <div className="text-sm text-ink-muted">Pending</div>
-              </div>
-              <div className="bg-surface-sunken p-3 rounded">
-                <div className="text-2xl font-bold text-accent-ink">{stats.queue.processing}</div>
-                <div className="text-sm text-ink-muted">Processing</div>
-              </div>
-              <div className="bg-surface-sunken p-3 rounded">
-                <div className="text-2xl font-bold text-green-600">{stats.queue.completed}</div>
-                <div className="text-sm text-ink-muted">Completed</div>
-              </div>
-              <div className="bg-surface-sunken p-3 rounded">
-                <div className="text-2xl font-bold text-red-600">{stats.queue.failed}</div>
-                <div className="text-sm text-ink-muted">Failed</div>
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex space-x-2 mb-4">
-              {stats.queue.completed > 0 && (
+        <ModalPortal>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/25 p-4 backdrop-blur-sm">
+            <div className="rounded-xl bg-surface ring-1 ring-hairline shadow-2xl p-6 max-w-4xl w-full max-h-[80vh] overflow-hidden flex flex-col">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold text-ink">
+                  OCR Processing Queue
+                </h2>
                 <button
-                  onClick={clearCompleted}
-                  className="px-3 py-1 bg-emerald-600 text-white text-sm rounded hover:bg-emerald-700"
+                  onClick={() => setShowDetails(false)}
+                  className="text-ink-faint transition-colors hover:text-ink"
                 >
-                  Clear Completed
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
                 </button>
-              )}
-              {stats.queue.failed > 0 && (
-                <button
-                  onClick={resetFailed}
-                  className="px-3 py-1 bg-orange-600 text-white text-sm rounded hover:bg-orange-600"
-                >
-                  Retry Failed
-                </button>
-              )}
-              <button
-                onClick={() => {
-                  fetchStats();
-                  fetchQueueItems();
-                }}
-                className="px-3 py-1 rounded border border-hairline text-sm text-ink-muted hover:bg-surface-hover hover:text-ink"
-              >
-                Refresh
-              </button>
-            </div>
-
-            {/* Queue Items */}
-            <div className="flex-1 overflow-y-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-2">Status</th>
-                    <th className="text-left py-2">Title</th>
-                    <th className="text-left py-2">Author</th>
-                    <th className="text-left py-2">Type</th>
-                    <th className="text-left py-2">Confidence</th>
-                    <th className="text-left py-2">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {queueItems.map(item => (
-                    <tr key={item.id} className="border-b">
-                      <td className="py-2">
-                        <span className={`${getStatusColor(item.status)} font-medium`}>
-                          {getStatusIcon(item.status)} {item.status}
-                        </span>
-                      </td>
-                      <td className="py-2 text-sm">{item.title}</td>
-                      <td className="py-2 text-sm">{item.author || '-'}</td>
-                      <td className="py-2 text-sm">{item.pdf_type}</td>
-                      <td className="py-2 text-sm">
-                        {item.ocr_confidence ? `${item.ocr_confidence}%` : '-'}
-                      </td>
-                      <td className="py-2">
-                        {item.status !== 'completed' && (
-                          <button
-                            onClick={() => removeFromQueue(item.book_id)}
-                            className="text-red-500 hover:text-red-700 dark:text-red-300 text-sm"
-                          >
-                            Remove
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-
-              {queueItems.length === 0 && (
-                <div className="text-center py-8 text-ink-faint">
-                  No items in queue
+              </div>
+  
+              <StatusNote
+                status={notice.status}
+                onDismiss={notice.clear}
+                className="mb-4"
+              />
+  
+              {/* Statistics */}
+              <div className="grid grid-cols-4 gap-4 mb-6">
+                <div className="bg-surface-sunken p-3 rounded">
+                  <div className="text-2xl font-bold text-yellow-600">{stats.queue.pending}</div>
+                  <div className="text-sm text-ink-muted">Pending</div>
                 </div>
-              )}
+                <div className="bg-surface-sunken p-3 rounded">
+                  <div className="text-2xl font-bold text-accent-ink">{stats.queue.processing}</div>
+                  <div className="text-sm text-ink-muted">Processing</div>
+                </div>
+                <div className="bg-surface-sunken p-3 rounded">
+                  <div className="text-2xl font-bold text-green-600">{stats.queue.completed}</div>
+                  <div className="text-sm text-ink-muted">Completed</div>
+                </div>
+                <div className="bg-surface-sunken p-3 rounded">
+                  <div className="text-2xl font-bold text-red-600">{stats.queue.failed}</div>
+                  <div className="text-sm text-ink-muted">Failed</div>
+                </div>
+              </div>
+  
+              {/* Action Buttons */}
+              <div className="flex space-x-2 mb-4">
+                {stats.queue.completed > 0 && (
+                  <button
+                    onClick={clearCompleted}
+                    className="px-3 py-1 bg-emerald-600 text-white text-sm rounded hover:bg-emerald-700"
+                  >
+                    Clear Completed
+                  </button>
+                )}
+                {stats.queue.failed > 0 && (
+                  <button
+                    onClick={resetFailed}
+                    className="px-3 py-1 bg-orange-600 text-white text-sm rounded hover:bg-orange-600"
+                  >
+                    Retry Failed
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    fetchStats();
+                    fetchQueueItems();
+                  }}
+                  className="px-3 py-1 rounded border border-hairline text-sm text-ink-muted hover:bg-surface-hover hover:text-ink"
+                >
+                  Refresh
+                </button>
+              </div>
+  
+              {/* Queue Items */}
+              <div className="flex-1 overflow-y-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-2">Status</th>
+                      <th className="text-left py-2">Title</th>
+                      <th className="text-left py-2">Author</th>
+                      <th className="text-left py-2">Type</th>
+                      <th className="text-left py-2">Confidence</th>
+                      <th className="text-left py-2">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {queueItems.map(item => (
+                      <tr key={item.id} className="border-b">
+                        <td className="py-2">
+                          <span className={`${getStatusColor(item.status)} font-medium`}>
+                            {getStatusIcon(item.status)} {item.status}
+                          </span>
+                        </td>
+                        <td className="py-2 text-sm">{item.title}</td>
+                        <td className="py-2 text-sm">{item.author || '-'}</td>
+                        <td className="py-2 text-sm">{item.pdf_type}</td>
+                        <td className="py-2 text-sm">
+                          {item.ocr_confidence ? `${item.ocr_confidence}%` : '-'}
+                        </td>
+                        <td className="py-2">
+                          {item.status !== 'completed' && (
+                            <button
+                              onClick={() => removeFromQueue(item.book_id)}
+                              className="text-red-500 hover:text-red-700 dark:text-red-300 text-sm"
+                            >
+                              Remove
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+  
+                {queueItems.length === 0 && (
+                  <div className="text-center py-8 text-ink-faint">
+                    No items in queue
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
     </>
   );

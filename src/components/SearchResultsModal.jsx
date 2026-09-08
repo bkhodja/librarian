@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import ModalPortal from './ModalPortal';
 
 function SearchResultsModal({ isOpen, onClose, book, searchQuery, searchType = 'any', isDark }) {
   const [occurrences, setOccurrences] = useState([]);
@@ -51,7 +52,8 @@ function SearchResultsModal({ isOpen, onClose, book, searchQuery, searchType = '
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/25 p-4 backdrop-blur-sm">
+    <ModalPortal>
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/25 p-4 backdrop-blur-sm">
       <div
         className={`
           bg-surface text-ink
@@ -163,9 +165,10 @@ function SearchResultsModal({ isOpen, onClose, book, searchQuery, searchType = '
           >
             Open Book
           </button>
+          </div>
         </div>
       </div>
-    </div>
+    </ModalPortal>
   );
 }
 
