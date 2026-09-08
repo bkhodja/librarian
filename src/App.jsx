@@ -14,6 +14,13 @@ import useDarkMode from './hooks/useDarkMode';
 
 const PAGE_SIZE = 60;
 
+// The whole library is fetched in one go because filtering, sorting and the
+// filter dropdowns all work across the full set in the browser; a page of
+// results would give wrong facets and a wrong sort order. The listing is
+// lightweight (about 1KB per book) and only PAGE_SIZE cards are rendered at a
+// time, so the cost is the transfer, not the DOM.
+const LIBRARY_FETCH_LIMIT = 100000;
+
 function App() {
   const { isDark, toggleDarkMode } = useDarkMode();
   const [books, setBooks] = useState([]);
@@ -54,6 +61,7 @@ function App() {
   // meant hundreds of cards and images before anything appeared; render a
   // screenful and extend as the sentinel below the grid scrolls into view.
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [totalBooks, setTotalBooks] = useState(0);
   const loadMoreRef = React.useRef(null);
 
   // User preferences state
@@ -333,7 +341,7 @@ function App() {
         if (progressData.length > 0) {
           // Fetch full book details for the currently reading books
           const bookIds = progressData.map(item => item.id);
-          const booksResponse = await fetch('http://localhost:3001/api/books?limit=500');
+          const booksResponse = await fetch(`http://localhost:3001/api/books?limit=${LIBRARY_FETCH_LIMIT}`);
           const booksData = await booksResponse.json();
 
           // Filter to only currently reading books and merge with progress
@@ -370,12 +378,10 @@ function App() {
         setCollectionBooks(data.books || []);
       } else {
         // Load all books
-        const response = await fetch('http://localhost:3001/api/books?limit=500');
+        const response = await fetch(`http://localhost:3001/api/books?limit=${LIBRARY_FETCH_LIMIT}`);
         const data = await response.json();
-        console.log('Loaded books:', data);
-        console.log('Books count:', data.books ? data.books.length : 0);
-        console.log('Setting books state:', data.books || []);
         setBooks(data.books || []);
+        setTotalBooks(data.pagination?.total ?? (data.books || []).length);
         setCollectionBooks([]);
       }
     } catch (error) {
@@ -597,7 +603,7 @@ function App() {
               </button>
 
               <span className="text-sm text-gray-600 dark:text-gray-400">
-                {loading ? 'Loading...' : (searchQuery || selectedTag || selectedAuthor || selectedFileType) ? `${filteredAndSortedBooks.length} of ${books.length}` : `${books.length} books`}
+                {loading ? 'Loading...' : (searchQuery || selectedTag || selectedAuthor || selectedFileType) ? `${filteredAndSortedBooks.length} of ${books.length}` : `${totalBooks || books.length} books`}
               </span>
               <input
                 type="text"
