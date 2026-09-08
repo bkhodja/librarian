@@ -349,6 +349,16 @@ const runMigrations = () => {
     db.exec('ALTER TABLE books ADD COLUMN is_adult INTEGER DEFAULT 0');
     console.log('✅ Added is_adult column to books table');
   }
+
+  // Records that a book has been assessed for adult content, separately from
+  // the answer. Without it every restart would re-ask the model about the
+  // whole library, and a book judged "not adult" is indistinguishable from one
+  // never looked at.
+  const hasAdultChecked = columns.some(col => col.name === 'adult_checked');
+  if (!hasAdultChecked) {
+    db.exec('ALTER TABLE books ADD COLUMN adult_checked INTEGER DEFAULT 0');
+    console.log('✅ Added adult_checked column to books table');
+  }
 };
 
 // Initialize tables

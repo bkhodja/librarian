@@ -25,6 +25,15 @@ const SCHEMA = {
   required: ['tags']
 };
 
+const ADULT_SCHEMA = {
+  type: 'object',
+  properties: {
+    adult: { type: 'boolean' },
+    why: { type: 'string' }
+  },
+  required: ['adult']
+};
+
 const SYSTEM = `You classify books by subject using a fixed list of tags.
 
 Rules:
@@ -105,6 +114,86 @@ Reply as JSON: {"tags": ["tag1"]}`;
     }
 
     return { tags: await this.keywordFallback(book), source: 'keywords' };
+  }
+
+  /**
+   * Is this sexually explicit material?
+   *
+   * Asked separately from tagging rather than folded into the same reply: the
+   * tag prompt was tuned carefully and giving the model a second, unrelated
+   * job alongside it risks the tags getting worse to answer a question that
+   * costs a second on its own.
+   *
+   * The wording draws the line at explicit material rather than subject
+   * matter, because a book that discusses sex clinically or academically is
+   * not what anyone means by hiding adult content.
+   */
+  async assessAdult(book) {
+    const description = book.description ? `\nDescription: ${book.description.slice(0, 400)}` : '';
+
+    const result = await ollama.generateJSON(
+      `Book:\nTitle: ${book.title || 'Unknown'}` +
+      `${book.author ? `\nAuthor: ${book.author}` : ''}` +
+      `${book.publisher ? `\nPublisher: ${book.publisher}` : ''}${description}\n\n` +
+      `Is this book sexually explicit adult material — erotica, or an explicit ` +
+      `sex manual — such that someone would want it hidden from a shared screen?\n\n` +
+      `Say false for books that merely discuss sex, relationships, anatomy, ` +
+      `health or gender academically or clinically. Say false for anything ` +
+      `non-sexual.\n\nReply as JSON: {"adult": true, "why": "a few words"}`,
+      ADULT_SCHEMA,
+      { maxTokens: 80 }
+    );
+
+    return result ? { adult: Boolean(result.adult), why: result.why || '' } : null;
+  }
+
+  /**
+   * Record an assessment. Only ever raises the flag, never lowers it: a
+   * judgement the user has already made — by ticking the box, or by any other
+   * means — outranks the model's, and disagreements here are genuine. On the
+   * relationship titles in one publisher's bundle the model said no where a
+   * person might well say yes.
+   */
+  recordAdult(bookId, isAdult) {
+    if (isAdult) {
+      db.prepare('UPDATE books SET is_adult = 1, adult_checked = 1 WHERE id = ?').run(bookId);
+    } else {
+      db.prepare('UPDATE books SET adult_checked = 1 WHERE id = ?').run(bookId);
+    }
+  }
+
+  /** Books never assessed for adult content. */
+  unassessedBooks(limit) {
+    return db.prepare(
+      'SELECT * FROM books WHERE adult_checked = 0 AND needs_review = 0 ORDER BY id LIMIT ?'
+    ).all(limit);
+  }
+
+  countUnassessed() {
+    return db.prepare(
+      'SELECT COUNT(*) AS count FROM books WHERE adult_checked = 0 AND needs_review = 0'
+    ).get().count;
+  }
+
+  /** Assess a batch, returning what it flagged so a caller can report it. */
+  async assessUnassessed(limit = 25, onFlag) {
+    const books = this.unassessedBooks(limit);
+    const result = { assessed: 0, flagged: 0 };
+
+    for (const book of books) {
+      const verdict = await this.assessAdult(book);
+      if (!verdict) break;                     // model unavailable; stop the pass
+
+      this.recordAdult(book.id, verdict.adult);
+      result.assessed++;
+
+      if (verdict.adult && !book.is_adult) {
+        result.flagged++;
+        if (onFlag) onFlag({ book, why: verdict.why });
+      }
+    }
+
+    return result;
   }
 
   /** Keyword matching, for when Ollama is unavailable or returns nothing usable. */

@@ -13,6 +13,7 @@ const THUMBNAIL_CONCURRENCY = Number(process.env.THUMBNAIL_CONCURRENCY) || 3;
 const PROCESS_CONCURRENCY = Number(process.env.PROCESSOR_WORKERS) || 2;
 const ENRICH_BATCH_SIZE = Number(process.env.ENRICH_BATCH_SIZE) || 25;
 const ENRICH_DELAY_MS = Number(process.env.ENRICH_DELAY_MS) || 1000;
+const ADULT_BATCH_SIZE = Number(process.env.ADULT_BATCH_SIZE) || 20;
 const TAG_BATCH_SIZE = Number(process.env.TAG_BATCH_SIZE) || 20;
 const thumbnailGenerator = require('./thumbnailGeneratorPdf2pic');
 const EventEmitter = require('events');
@@ -352,14 +353,40 @@ class BackgroundTaskManager extends EventEmitter {
       console.log(`   tagged ${result.tagged}, skipped ${result.skipped} ` +
                   `(${result.bySource.ai} by model, ${result.bySource.keywords} by keywords)`);
 
+      // Assess adult content in the same pass. It shares the model and the
+      // same "is Ollama up" check, and doing it here means a book added today
+      // is classified without anyone asking.
+      await this.assessAdultContent();
+
       // Keep going while there is work, rather than waiting out the interval.
-      if (aiTagger.countTaggable() > 0) {
+      if (aiTagger.countTaggable() > 0 || aiTagger.countUnassessed() > 0) {
         setTimeout(() => this.tagUntaggedBooks(), 1000);
       }
     } catch (error) {
       console.error('Tagging pass failed:', error.message);
     } finally {
       this.isTagging = false;
+    }
+  }
+
+  /**
+   * Flag sexually explicit books so the "hide adult content" preference has
+   * something to act on. Previously the flag was only ever set by hand, one
+   * book at a time, so turning the preference on hid almost nothing.
+   *
+   * The model may only raise the flag, never lower it — see recordAdult.
+   */
+  async assessAdultContent() {
+    const remaining = aiTagger.countUnassessed();
+    if (remaining === 0) return;
+
+    const result = await aiTagger.assessUnassessed(ADULT_BATCH_SIZE, ({ book, why }) => {
+      console.log(`   🔞 flagged as adult: ${(book.title || '').slice(0, 50)}${why ? ` — ${why}` : ''}`);
+    });
+
+    if (result.assessed > 0) {
+      console.log(`   assessed ${result.assessed} book(s) for adult content, flagged ${result.flagged}` +
+                  ` (${remaining - result.assessed} left)`);
     }
   }
 
