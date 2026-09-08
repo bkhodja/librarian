@@ -14,12 +14,19 @@ const collectionsRouter = require('./routes/collections');
 const searchRouter = require('./routes/search');
 const ocrRouter = require('./routes/ocr');
 const progressRouter = require('./routes/progress');
+const ocrQueueRouter = require('./routes/ocrQueue');
+const duplicatesRouter = require('./routes/duplicates');
+const autoTagsRouter = require('./routes/autoTags');
+const preferencesRouter = require('./routes/preferences');
+const semanticSearchRouter = require('./routes/semanticSearch');
+const summariesRouter = require('./routes/summaries');
 
 // Initialize database
 const db = require('./database/init');
 
 // Initialize background task manager
 const backgroundTaskManager = require('./services/backgroundTaskManager');
+const ocrQueueManager = require('./services/ocrQueueManager');
 
 // Configure logger
 const logger = winston.createLogger({
@@ -108,6 +115,12 @@ app.use('/api/collections', collectionsRouter);
 app.use('/api/search', searchRouter);
 app.use('/api/ocr', ocrRouter);
 app.use('/api/progress', progressRouter);
+app.use('/api/ocr-queue', ocrQueueRouter);
+app.use('/api/duplicates', duplicatesRouter);
+app.use('/api/auto-tags', autoTagsRouter);
+app.use('/api/preferences', preferencesRouter);
+app.use('/api/search', semanticSearchRouter);
+app.use('/api/summaries', summariesRouter);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -147,6 +160,10 @@ app.listen(PORT, async () => {
   try {
     await backgroundTaskManager.initialize();
     logger.info('Background tasks initialized');
+
+    // Initialize OCR queue manager - DISABLED due to crashes
+    // await ocrQueueManager.initialize();
+    // logger.info('OCR queue manager initialized');
   } catch (error) {
     logger.error('Failed to initialize background tasks:', error);
   }
@@ -156,6 +173,7 @@ app.listen(PORT, async () => {
 process.on('SIGTERM', async () => {
   logger.info('SIGTERM received, shutting down gracefully');
   await backgroundTaskManager.shutdown();
+  // await ocrQueueManager.shutdown();
   db.close();
   process.exit(0);
 });
@@ -163,6 +181,7 @@ process.on('SIGTERM', async () => {
 process.on('SIGINT', async () => {
   logger.info('SIGINT received, shutting down gracefully');
   await backgroundTaskManager.shutdown();
+  // await ocrQueueManager.shutdown();
   db.close();
   process.exit(0);
 });

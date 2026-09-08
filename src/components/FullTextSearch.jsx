@@ -4,7 +4,7 @@ import SearchResultsModal from './SearchResultsModal';
 
 function FullTextSearch({ onSearchResults, isDark }) {
   const [query, setQuery] = useState('');
-  const [searchType, setSearchType] = useState('any'); // any, all, phrase
+  const [searchType, setSearchType] = useState('any'); // any, all, phrase, semantic, hybrid
   const [isSearching, setIsSearching] = useState(false);
   const [results, setResults] = useState([]);
   const [totalResults, setTotalResults] = useState(0);
@@ -13,6 +13,17 @@ function FullTextSearch({ onSearchResults, isDark }) {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedBook, setSelectedBook] = useState(null);
   const [showOccurrencesModal, setShowOccurrencesModal] = useState(false);
+  const [embeddingStats, setEmbeddingStats] = useState(null);
+
+  // Fetch embedding stats on mount
+  useEffect(() => {
+    fetch('http://localhost:3001/api/search/embeddings/stats')
+      .then(res => res.json())
+      .then(setEmbeddingStats)
+      .catch(() => {});
+  }, []);
+
+  const isSemanticMode = searchType === 'semantic' || searchType === 'hybrid';
 
   // Debounced search function
   const performSearch = useCallback(
@@ -25,9 +36,20 @@ function FullTextSearch({ onSearchResults, isDark }) {
 
       setIsSearching(true);
       try {
-        const response = await fetch(
-          `http://localhost:3001/api/search/books?q=${encodeURIComponent(searchQuery)}&matchType=${matchType}&limit=20`
-        );
+        let response;
+        if (matchType === 'semantic') {
+          response = await fetch(
+            `http://localhost:3001/api/search/semantic?q=${encodeURIComponent(searchQuery)}&limit=20`
+          );
+        } else if (matchType === 'hybrid') {
+          response = await fetch(
+            `http://localhost:3001/api/search/hybrid?q=${encodeURIComponent(searchQuery)}&limit=20`
+          );
+        } else {
+          response = await fetch(
+            `http://localhost:3001/api/search/books?q=${encodeURIComponent(searchQuery)}&matchType=${matchType}&limit=20`
+          );
+        }
         const data = await response.json();
 
         setResults(data.results || []);
@@ -145,6 +167,8 @@ function FullTextSearch({ onSearchResults, isDark }) {
             <option value="any">Any words</option>
             <option value="all">All words</option>
             <option value="phrase">Exact phrase</option>
+            <option value="semantic">Smart Search</option>
+            <option value="hybrid">Hybrid (Best)</option>
           </select>
 
           {/* Loading Indicator */}
@@ -258,6 +282,37 @@ function FullTextSearch({ onSearchResults, isDark }) {
                         )}
                       </div>
 
+                      {/* Semantic search indicators */}
+                      {isSemanticMode && (
+                        <div className="mt-2 flex items-center gap-2">
+                          {result.similarity != null && (
+                            <span className="px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 rounded text-xs">
+                              {Math.round(result.similarity * 100)}% match
+                            </span>
+                          )}
+                          {result.matchType === 'both' && (
+                            <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded text-xs">
+                              keyword + semantic
+                            </span>
+                          )}
+                          {result.matchType === 'semantic' && (
+                            <span className="px-2 py-0.5 bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded text-xs">
+                              semantic
+                            </span>
+                          )}
+                          {result.matchType === 'keyword' && (
+                            <span className="px-2 py-0.5 bg-yellow-100 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300 rounded text-xs">
+                              keyword
+                            </span>
+                          )}
+                          {result.score != null && (
+                            <span className="text-xs text-gray-400">
+                              score: {result.score.toFixed(3)}
+                            </span>
+                          )}
+                        </div>
+                      )}
+
                       {/* Action Buttons */}
                       <div className="mt-3 flex gap-2">
                         <button
@@ -314,11 +369,18 @@ function FullTextSearch({ onSearchResults, isDark }) {
             Search Tips:
           </h4>
           <ul className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
-            <li>• Use "Any words" to find books containing any of your search terms</li>
-            <li>• Use "All words" to find books containing all of your search terms</li>
-            <li>• Use "Exact phrase" to find books with the exact sequence of words</li>
+            <li>• <strong>Any words</strong> — find books containing any of your search terms</li>
+            <li>• <strong>All words</strong> — find books containing all of your search terms</li>
+            <li>• <strong>Exact phrase</strong> — find books with the exact sequence of words</li>
+            <li>• <strong>Smart Search</strong> — AI-powered semantic search by meaning, not just keywords</li>
+            <li>• <strong>Hybrid (Best)</strong> — combines keyword + semantic for best results</li>
             <li>• Minimum 2 characters required to search</li>
           </ul>
+          {embeddingStats && (
+            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+              {embeddingStats.embeddedBooks}/{embeddingStats.totalBooks} books indexed for smart search ({embeddingStats.coverage}%)
+            </p>
+          )}
         </div>
       )}
 

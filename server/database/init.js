@@ -98,6 +98,42 @@ const createTables = () => {
     )
   `);
 
+  // User preferences
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS user_preferences (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      hide_adult_content INTEGER DEFAULT 0,
+      default_view_mode TEXT DEFAULT 'grid' CHECK(default_view_mode IN ('grid', 'list')),
+      default_sort_by TEXT DEFAULT 'date_added',
+      default_sort_order TEXT DEFAULT 'desc' CHECK(default_sort_order IN ('asc', 'desc')),
+      books_per_page INTEGER DEFAULT 50,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Initialize default preferences if not exists
+  db.exec(`
+    INSERT OR IGNORE INTO user_preferences (id, hide_adult_content, default_view_mode)
+    VALUES (1, 0, 'grid')
+  `);
+
+  // OCR Queue table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS ocr_queue (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      book_id INTEGER NOT NULL UNIQUE,
+      status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'processing', 'completed', 'failed')),
+      priority INTEGER DEFAULT 0,
+      attempts INTEGER DEFAULT 0,
+      error_message TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      started_at DATETIME,
+      completed_at DATETIME,
+      FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE
+    )
+  `);
+
   // Collections/Shelves table
   db.exec(`
     CREATE TABLE IF NOT EXISTS collections (
@@ -244,6 +280,20 @@ const runMigrations = () => {
     console.log('✅ Added ocr_processed_at column to books table');
   }
 
+  // Add OCR status column
+  const hasOcrStatus = columns.some(col => col.name === 'ocr_status');
+  if (!hasOcrStatus) {
+    db.exec('ALTER TABLE books ADD COLUMN ocr_status TEXT DEFAULT "not_needed" CHECK(ocr_status IN ("not_needed", "pending", "processing", "completed", "failed"))');
+    console.log('✅ Added ocr_status column to books table');
+  }
+
+  // Add OCR error column
+  const hasOcrError = columns.some(col => col.name === 'ocr_error');
+  if (!hasOcrError) {
+    db.exec('ALTER TABLE books ADD COLUMN ocr_error TEXT');
+    console.log('✅ Added ocr_error column to books table');
+  }
+
   // Add reading progress enhancement columns
   const progressColumns = db.prepare("PRAGMA table_info(reading_progress)").all();
   const hasStartedReading = progressColumns.some(col => col.name === 'started_reading');
@@ -269,6 +319,13 @@ const runMigrations = () => {
   if (!hasReadingTime) {
     db.exec('ALTER TABLE reading_progress ADD COLUMN reading_time_minutes INTEGER DEFAULT 0');
     console.log('✅ Added reading_time_minutes column to reading_progress table');
+  }
+
+  // Add adult content flag column
+  const hasIsAdult = columns.some(col => col.name === 'is_adult');
+  if (!hasIsAdult) {
+    db.exec('ALTER TABLE books ADD COLUMN is_adult INTEGER DEFAULT 0');
+    console.log('✅ Added is_adult column to books table');
   }
 };
 
@@ -317,8 +374,55 @@ const getStats = () => {
 };
 
 // Export database instance and helper functions
+// Helper functions for database operations
+const getBookById = (id) => {
+  const stmt = db.prepare('SELECT * FROM books WHERE id = ?');
+  return stmt.get(id);
+};
+
+const getAllBooks = () => {
+  const stmt = db.prepare('SELECT * FROM books ORDER BY date_added DESC');
+  return stmt.all();
+};
+
+const getBookTags = (bookId) => {
+  const stmt = db.prepare(`
+    SELECT t.* FROM tags t
+    JOIN book_tags bt ON t.id = bt.tag_id
+    WHERE bt.book_id = ?
+  `);
+  return stmt.all(bookId);
+};
+
+const addTagToBook = (bookId, tagId) => {
+  const stmt = db.prepare('INSERT INTO book_tags (book_id, tag_id) VALUES (?, ?)');
+  return stmt.run(bookId, tagId);
+};
+
+const updateBook = (id, updates) => {
+  const fields = Object.keys(updates);
+  const values = Object.values(updates);
+
+  if (fields.length === 0) return;
+
+  const setClause = fields.map(field => `${field} = ?`).join(', ');
+  const stmt = db.prepare(`UPDATE books SET ${setClause} WHERE id = ?`);
+  return stmt.run(...values, id);
+};
+
+const deleteBook = (id) => {
+  const stmt = db.prepare('DELETE FROM books WHERE id = ?');
+  return stmt.run(id);
+};
+
 module.exports = {
   db,
   getStats,
-  close: () => db.close()
+  close: () => db.close(),
+  getBookById,
+  getAllBooks,
+  getBookTags,
+  addTagToBook,
+  updateBook,
+  deleteBook
 };

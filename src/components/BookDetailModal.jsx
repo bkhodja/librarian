@@ -9,13 +9,24 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
   const [isEnrichingMetadata, setIsEnrichingMetadata] = useState(false);
   const [collections, setCollections] = useState([]);
   const [bookCollections, setBookCollections] = useState([]);
+  const [tagSuggestions, setTagSuggestions] = useState([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const [similarBooks, setSimilarBooks] = useState([]);
+  const [loadingSimilar, setLoadingSimilar] = useState(false);
+  const [summary, setSummary] = useState(null);
+  const [loadingSummary, setLoadingSummary] = useState(false);
+  const [summaryAvailable, setSummaryAvailable] = useState(false);
 
   useEffect(() => {
     setEditedBook(book || {});
+    setSummary(null);
     if (book?.id) {
       fetchTags(book.id);
       fetchCollections();
       fetchBookCollections(book.id);
+      fetchSimilarBooks(book.id);
+      fetchSummary(book.id);
+      checkSummaryAvailability();
     }
   }, [book]);
 
@@ -82,6 +93,136 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
       }
     } catch (error) {
       console.error('Failed to update collection:', error);
+    }
+  };
+
+  const fetchSimilarBooks = async (bookId) => {
+    setLoadingSimilar(true);
+    try {
+      const response = await fetch(`http://localhost:3001/api/search/similar/${bookId}?limit=5`);
+      const data = await response.json();
+      setSimilarBooks(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Failed to fetch similar books:', error);
+      setSimilarBooks([]);
+    } finally {
+      setLoadingSimilar(false);
+    }
+  };
+
+  const fetchSummary = async (bookId) => {
+    try {
+      const response = await fetch(`http://localhost:3001/api/summaries/${bookId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setSummary(data);
+      } else {
+        setSummary(null);
+      }
+    } catch (error) {
+      setSummary(null);
+    }
+  };
+
+  const checkSummaryAvailability = async () => {
+    try {
+      const response = await fetch('http://localhost:3001/api/summaries/status');
+      const data = await response.json();
+      setSummaryAvailable(data.available);
+    } catch {
+      setSummaryAvailable(false);
+    }
+  };
+
+  const handleGenerateSummary = async (force = false) => {
+    if (!book?.id) return;
+    setLoadingSummary(true);
+    try {
+      const response = await fetch(`http://localhost:3001/api/summaries/${book.id}/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ force })
+      });
+      const data = await response.json();
+      if (data.error) {
+        alert(`Summary generation failed: ${data.error}`);
+      } else {
+        setSummary({
+          summary: data.summary,
+          summary_short: data.summary_short,
+          strategy: data.strategy,
+          model_name: data.model
+        });
+      }
+    } catch (error) {
+      console.error('Failed to generate summary:', error);
+      alert('Failed to generate summary. Please try again.');
+    } finally {
+      setLoadingSummary(false);
+    }
+  };
+
+  const fetchTagSuggestions = async () => {
+    if (!book?.id) return;
+
+    setLoadingSuggestions(true);
+    try {
+      const response = await fetch(`http://localhost:3001/api/auto-tags/suggestions/${book.id}`);
+      const data = await response.json();
+
+      if (data.success && data.suggestions) {
+        setTagSuggestions(data.suggestions);
+      }
+    } catch (error) {
+      console.error('Failed to fetch tag suggestions:', error);
+    } finally {
+      setLoadingSuggestions(false);
+    }
+  };
+
+  const applyTagSuggestion = async (tagName) => {
+    if (!book?.id) return;
+
+    try {
+      const response = await fetch(`http://localhost:3001/api/auto-tags/apply/${book.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tags: [tagName] })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Refresh tags to show the new one
+        fetchTags(book.id);
+        // Remove the applied suggestion from the list
+        setTagSuggestions(tagSuggestions.filter(s => s !== tagName));
+      }
+    } catch (error) {
+      console.error('Failed to apply tag suggestion:', error);
+    }
+  };
+
+  const applyAllSuggestions = async () => {
+    if (!book?.id || tagSuggestions.length === 0) return;
+
+    try {
+      const response = await fetch(`http://localhost:3001/api/auto-tags/apply/${book.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tags: tagSuggestions })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Refresh tags to show the new ones
+        fetchTags(book.id);
+        // Clear all suggestions
+        setTagSuggestions([]);
+      }
+    } catch (error) {
+      console.error('Failed to apply tag suggestions:', error);
     }
   };
 
@@ -329,6 +470,60 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
               </div>
             )}
 
+            {/* AI Summary */}
+            <div className="pt-2">
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium text-gray-700">AI Summary</label>
+                <div className="flex items-center gap-2">
+                  {summary && (
+                    <span className="text-xs text-gray-400">
+                      {summary.model_name === 'extractive-local' ? 'Excerpt' : 'AI'} · {summary.strategy}
+                    </span>
+                  )}
+                  {summary ? (
+                    <button
+                      onClick={() => handleGenerateSummary(true)}
+                      disabled={loadingSummary}
+                      className="px-3 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300 disabled:opacity-50"
+                    >
+                      {loadingSummary ? 'Generating...' : 'Regenerate'}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleGenerateSummary(false)}
+                      disabled={loadingSummary}
+                      className="px-3 py-1 text-xs bg-purple-500 text-white rounded hover:bg-purple-600 disabled:opacity-50"
+                    >
+                      {loadingSummary ? 'Generating...' : summaryAvailable ? 'Generate AI Summary' : 'Generate Summary'}
+                    </button>
+                  )}
+                </div>
+              </div>
+              {loadingSummary && (
+                <div className="flex items-center gap-2 p-3 bg-purple-50 rounded-md">
+                  <div className="w-4 h-4 border-t-2 border-purple-500 border-solid rounded-full animate-spin"></div>
+                  <span className="text-sm text-purple-700">Generating summary...</span>
+                </div>
+              )}
+              {summary && !loadingSummary && (
+                <div className="p-3 bg-gray-50 rounded-md">
+                  {summary.summary_short && (
+                    <p className="text-sm font-medium text-gray-800 mb-2 italic">
+                      {summary.summary_short}
+                    </p>
+                  )}
+                  <div className="text-sm text-gray-700 whitespace-pre-line">
+                    {summary.summary}
+                  </div>
+                </div>
+              )}
+              {!summary && !loadingSummary && !summaryAvailable && (
+                <p className="text-xs text-gray-400 italic">
+                  Set ANTHROPIC_API_KEY in .env for AI-powered summaries, or click Generate for an extractive summary.
+                </p>
+              )}
+            </div>
+
             {/* Metadata Grid */}
             <div className="grid grid-cols-3 gap-4">
               <div>
@@ -388,6 +583,25 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
               <p className="text-gray-600 text-sm break-all">{book.file_path}</p>
             </div>
 
+            {/* Adult Content Flag */}
+            {isEditing && (
+              <div className="flex items-center p-3 bg-orange-50 border border-orange-200 rounded-md">
+                <input
+                  type="checkbox"
+                  id="is_adult"
+                  checked={editedBook.is_adult === 1}
+                  onChange={(e) => setEditedBook({ ...editedBook, is_adult: e.target.checked ? 1 : 0 })}
+                  className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded"
+                />
+                <label htmlFor="is_adult" className="ml-2 block text-sm text-gray-900">
+                  <span className="font-medium">Mark as Adult Content</span>
+                  <span className="block text-xs text-gray-500 mt-1">
+                    Adult books will be hidden when "Hide Adult Content" is enabled in preferences
+                  </span>
+                </label>
+              </div>
+            )}
+
             {/* Tags */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Tags</label>
@@ -425,6 +639,40 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
                   >
                     Add
                   </button>
+                  <button
+                    onClick={fetchTagSuggestions}
+                    disabled={loadingSuggestions}
+                    className="px-4 py-2 bg-purple-500 text-white rounded-md hover:bg-purple-600 disabled:opacity-50"
+                  >
+                    {loadingSuggestions ? 'Loading...' : 'Suggest'}
+                  </button>
+                </div>
+              )}
+
+              {/* Tag Suggestions */}
+              {tagSuggestions.length > 0 && (
+                <div className="mt-3 p-3 bg-purple-50 rounded-md border border-purple-200">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm font-medium text-gray-700">Suggested Tags:</span>
+                    <button
+                      onClick={applyAllSuggestions}
+                      className="text-xs px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600"
+                    >
+                      Apply All
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {tagSuggestions.map(suggestion => (
+                      <button
+                        key={suggestion}
+                        onClick={() => applyTagSuggestion(suggestion)}
+                        className="px-3 py-1 bg-white border border-purple-300 text-purple-800 rounded-full text-sm hover:bg-purple-100 transition-colors"
+                        title="Click to add this tag"
+                      >
+                        + {suggestion}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
@@ -464,11 +712,6 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
                   ⚠️ Needs Review
                 </span>
               )}
-              {book.ocr_confidence && (
-                <span className="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm">
-                  OCR: {book.ocr_confidence}% confidence
-                </span>
-              )}
               {book.metadata_source && (
                 <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm">
                   📚 {book.metadata_source}
@@ -505,6 +748,47 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
                     console.log('Progress updated');
                   }}
                 />
+              </div>
+            )}
+
+            {/* Similar Books */}
+            {similarBooks.length > 0 && (
+              <div className="pt-4 border-t">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Similar Books</label>
+                <div className="space-y-2">
+                  {similarBooks.map(similar => (
+                    <div
+                      key={similar.id}
+                      className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
+                      onClick={() => {
+                        // Navigate to similar book
+                        window.location.href = `#book-${similar.id}`;
+                      }}
+                    >
+                      {similar.thumbnail_path && (
+                        <img
+                          src={`http://localhost:3001${similar.thumbnail_path}`}
+                          alt={similar.title}
+                          className="w-8 h-10 object-cover rounded"
+                        />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-800 truncate">{similar.title}</p>
+                        {similar.author && (
+                          <p className="text-xs text-gray-500 truncate">{similar.author}</p>
+                        )}
+                      </div>
+                      <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded text-xs whitespace-nowrap">
+                        {Math.round(similar.similarity * 100)}%
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {loadingSimilar && (
+              <div className="pt-4 border-t">
+                <p className="text-sm text-gray-500">Finding similar books...</p>
               </div>
             )}
 

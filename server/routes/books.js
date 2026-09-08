@@ -376,7 +376,7 @@ router.post('/', (req, res) => {
 // Update book metadata
 router.put('/:id', (req, res) => {
   try {
-    const { title, author, language, publication_year, isbn, publisher, edition, description, tags, categories, thumbnail_path } = req.body;
+    const { title, author, language, publication_year, isbn, publisher, edition, description, tags, categories, thumbnail_path, is_adult } = req.body;
 
     // Build UPDATE query dynamically to only update provided fields
     const updateFields = [];
@@ -391,6 +391,7 @@ router.put('/:id', (req, res) => {
     if (edition !== undefined) { updateFields.push('edition = ?'); values.push(edition); }
     if (description !== undefined) { updateFields.push('description = ?'); values.push(description); }
     if (thumbnail_path !== undefined) { updateFields.push('thumbnail_path = ?'); values.push(thumbnail_path); }
+    if (is_adult !== undefined) { updateFields.push('is_adult = ?'); values.push(is_adult); }
 
     // Always update last_modified
     updateFields.push('last_modified = CURRENT_TIMESTAMP');
@@ -402,9 +403,9 @@ router.put('/:id', (req, res) => {
     }
 
     // Update tags if provided
-    if (tags !== undefined) {
+    if (tags !== undefined && tags !== null) {
       db.prepare('DELETE FROM book_tags WHERE book_id = ?').run(req.params.id);
-      if (tags.length > 0) {
+      if (Array.isArray(tags) && tags.length > 0) {
         const insertTag = db.prepare('INSERT INTO book_tags (book_id, tag_id) VALUES (?, ?)');
         tags.forEach(tagId => {
           insertTag.run(req.params.id, tagId);
@@ -413,9 +414,9 @@ router.put('/:id', (req, res) => {
     }
 
     // Update categories if provided
-    if (categories !== undefined) {
+    if (categories !== undefined && categories !== null) {
       db.prepare('DELETE FROM book_categories WHERE book_id = ?').run(req.params.id);
-      if (categories.length > 0) {
+      if (Array.isArray(categories) && categories.length > 0) {
         const insertCategory = db.prepare('INSERT INTO book_categories (book_id, category_id) VALUES (?, ?)');
         categories.forEach(categoryId => {
           insertCategory.run(req.params.id, categoryId);

@@ -8,6 +8,8 @@ import ReadingProgress from './components/ReadingProgress';
 import ReadingStatsDashboard from './components/ReadingStatsDashboard';
 import PDFViewer from './components/PDFViewer';
 import EpubViewer from './components/EpubViewer';
+import DuplicateManager from './components/DuplicateManager';
+import PreferencesModal from './components/PreferencesModal';
 import useDarkMode from './hooks/useDarkMode';
 
 function App() {
@@ -43,10 +45,23 @@ function App() {
 
   const [collectionsRefreshKey, setCollectionsRefreshKey] = useState(0);
 
+  // Preferences modal state
+  const [isPreferencesOpen, setIsPreferencesOpen] = useState(false);
+
+  // User preferences state
+  const [userPreferences, setUserPreferences] = useState({
+    hide_adult_content: false,
+    default_view_mode: 'grid',
+    default_sort_by: 'date_added',
+    default_sort_order: 'desc',
+    books_per_page: 50
+  });
+
   // Advanced filtering states
   const [selectedTag, setSelectedTag] = useState('');
   const [selectedAuthor, setSelectedAuthor] = useState('');
   const [selectedFileType, setSelectedFileType] = useState('');
+  const [selectedLanguage, setSelectedLanguage] = useState('');
   const [sortBy, setSortBy] = useState('title'); // title, date_added, file_size
   const [sortOrder, setSortOrder] = useState('asc'); // asc, desc
 
@@ -95,6 +110,7 @@ function App() {
     const ext = book.file_path?.split('.').pop()?.toLowerCase();
     return ext;
   }).filter(Boolean))].sort();
+  const allLanguages = [...new Set(books.map(book => book.language).filter(Boolean))].sort();
 
   // Enhanced filtering and sorting
   const filteredAndSortedBooks = React.useMemo(() => {
@@ -118,7 +134,15 @@ function App() {
       const matchesFileType = !selectedFileType ||
         bookFileType === selectedFileType;
 
-      return matchesSearch && matchesTags && matchesAuthor && matchesFileType;
+      // Language filter
+      const matchesLanguage = !selectedLanguage ||
+        book.language === selectedLanguage;
+
+      // Adult content filter
+      const matchesAdultFilter = !userPreferences.hide_adult_content ||
+        !book.is_adult || book.is_adult === 0;
+
+      return matchesSearch && matchesTags && matchesAuthor && matchesFileType && matchesLanguage && matchesAdultFilter;
     });
 
     // Apply sorting
@@ -146,7 +170,22 @@ function App() {
     });
 
     return filtered;
-  }, [books, searchQuery, selectedTag, selectedAuthor, selectedFileType, sortBy, sortOrder]);
+  }, [books, searchQuery, selectedTag, selectedAuthor, selectedFileType, selectedLanguage, sortBy, sortOrder, userPreferences]);
+
+  // Fetch user preferences on mount
+  useEffect(() => {
+    const fetchPreferences = async () => {
+      try {
+        const response = await fetch('http://localhost:3001/api/preferences');
+        const data = await response.json();
+        setUserPreferences(data);
+      } catch (error) {
+        console.error('Failed to fetch preferences:', error);
+      }
+    };
+
+    fetchPreferences();
+  }, []);
 
   useEffect(() => {
     // Load books on mount
@@ -300,6 +339,8 @@ function App() {
         const response = await fetch('http://localhost:3001/api/books?limit=500');
         const data = await response.json();
         console.log('Loaded books:', data);
+        console.log('Books count:', data.books ? data.books.length : 0);
+        console.log('Setting books state:', data.books || []);
         setBooks(data.books || []);
         setCollectionBooks([]);
       }
@@ -463,6 +504,9 @@ function App() {
                 </div>
               )}
 
+              {/* Duplicate Manager */}
+              <DuplicateManager />
+
               {/* Full-text search toggle */}
               <button
                 onClick={() => setShowFullTextSearch(!showFullTextSearch)}
@@ -490,6 +534,18 @@ function App() {
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+              </button>
+
+              {/* Preferences button */}
+              <button
+                onClick={() => setIsPreferencesOpen(true)}
+                className="p-2 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                title="Preferences"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
               </button>
 
@@ -583,6 +639,23 @@ function App() {
             </select>
           </div>
 
+          {/* Language Filter */}
+          {allLanguages.length > 0 && (
+            <div className="flex items-center space-x-2">
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Language:</label>
+              <select
+                className="px-3 py-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={selectedLanguage}
+                onChange={(e) => setSelectedLanguage(e.target.value)}
+              >
+                <option value="">All Languages</option>
+                {allLanguages.map(lang => (
+                  <option key={lang} value={lang}>{lang}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {/* Sort Options */}
           <div className="flex items-center space-x-2">
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Sort by:</label>
@@ -606,12 +679,13 @@ function App() {
           </div>
 
           {/* Clear Filters */}
-          {(selectedTag || selectedAuthor || selectedFileType) && (
+          {(selectedTag || selectedAuthor || selectedFileType || selectedLanguage) && (
             <button
               onClick={() => {
                 setSelectedTag('');
                 setSelectedAuthor('');
                 setSelectedFileType('');
+                setSelectedLanguage('');
               }}
               className="px-3 py-1 bg-red-500 dark:bg-red-600 text-white rounded-md text-sm hover:bg-red-600 dark:hover:bg-red-700 transition-colors"
             >
@@ -650,7 +724,7 @@ function App() {
         ) : !books || books.length === 0 ? (
           <div className="text-center py-16">
             <div className="text-gray-500 dark:text-gray-400 text-lg">
-              No books found. Click "Scan Library" to discover books.
+              Loading library...
             </div>
           </div>
         ) : filteredAndSortedBooks.length === 0 ? (
@@ -758,6 +832,12 @@ function App() {
           }}
         />
       )}
+
+      {/* Preferences Modal */}
+      <PreferencesModal
+        isOpen={isPreferencesOpen}
+        onClose={() => setIsPreferencesOpen(false)}
+      />
       </div>
     </div>
   );
