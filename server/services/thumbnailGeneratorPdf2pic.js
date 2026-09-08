@@ -65,6 +65,7 @@ class ThumbnailGeneratorPdf2pic {
         return {
           success: true,
           thumbnail: finalThumbnail,
+          thumbnailPath,
           path: thumbnailPath
         };
       } else {
@@ -101,6 +102,7 @@ class ThumbnailGeneratorPdf2pic {
         return {
           success: true,
           thumbnail: `/thumbnails/book_${bookId}.jpg`,
+          thumbnailPath,
           path: thumbnailPath,
           isPlaceholder: true
         };
