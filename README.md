@@ -19,6 +19,7 @@ A powerful desktop application for cataloging and managing your personal PDF boo
 - 🔍 **Advanced Filtering** - Filter by:
   - Multiple tags (AND logic)
   - Authors
+  - Languages (Russian, English, etc.)
   - File types (PDF, EPUB, etc.)
   - Combined with search
 - 📊 **Sorting Options** - Sort your library by:
@@ -30,6 +31,8 @@ A powerful desktop application for cataloging and managing your personal PDF boo
 - 🎯 **Sticky Navigation** - Header and filter bars stay visible while scrolling
 - 🚀 **Batch Processing** - Process metadata for multiple books at once
 - 📸 **Batch Thumbnail Generation** - Generate covers for all books with one click
+- 🏷️ **Auto-Tagging Suggestions** - Intelligent tag recommendations based on book content and metadata analysis (~200+ keywords)
+- 🔍 **Duplicate Detection** - Find and merge duplicate books using advanced string similarity algorithms (Levenshtein distance)
 
 ## Tech Stack
 
@@ -145,22 +148,26 @@ Bibliotheka/
 - Batch thumbnail generation
 
 ✅ **Phase 5**: Advanced Search & Filtering
-- Multi-criteria filtering (tags, authors, file types)
+- Multi-criteria filtering (tags, authors, languages, file types)
 - Advanced sorting options (title, author, date, size)
 - Combined search and filter functionality
 - Sticky navigation and filter bars
 - Real-time filtering updates
+- Language filter dropdown for multi-language libraries
+
+✅ **Phase 11**: Smart Library Management
+- Auto-tagging suggestions with content analysis
+- Duplicate detection and merging system
+- Language-based filtering
 
 ### Next Steps
 
 🚧 **Upcoming Features**:
-- Author extraction from PDF metadata
-- Multi-select for batch operations
-- Collections/shelves system
-- Reading progress tracking
-- Full-text search within PDFs
+- PDF-to-image conversion for OCR completion
+- Smart collections with rule-based filtering
+- Reading statistics dashboard
 - Export/import functionality
-- Dark mode
+- Enhanced duplicate detection with file hash comparison
 
 ## License
 
