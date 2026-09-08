@@ -258,7 +258,7 @@ function PDFViewer({ book, filePath, isOpen, onClose, isDark, searchTerm = null,
             <span className="text-sm text-ink-faint">Progress:</span>
             <div className="w-32 bg-white/15 rounded-full h-2 overflow-hidden">
               <div
-                className="h-full bg-emerald-500/100 transition-all duration-300"
+                className="h-full bg-emerald-500 transition-all duration-300"
                 style={{ width: `${progressPercentage}%` }}
               />
             </div>

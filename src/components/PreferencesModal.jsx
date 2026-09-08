@@ -205,7 +205,7 @@ const PreferencesModal = ({ isOpen, onClose }) => {
                 <div className={`p-4 rounded-lg ${
                   message.type === 'success'
                     ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
-                    : 'bg-red-500/100/10 text-red-700 dark:text-red-300'
+                    : 'bg-red-500/10 text-red-700 dark:text-red-300'
                 }`}>
                   {message.text}
                 </div>

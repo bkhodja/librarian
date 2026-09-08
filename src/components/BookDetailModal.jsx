@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import StatusNote, { useStatus } from './StatusNote';
 import ReadingProgress from './ReadingProgress';
 
 function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollectionChange }) {
@@ -10,6 +11,8 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
   const [collections, setCollections] = useState([]);
   const [bookCollections, setBookCollections] = useState([]);
   const [tagSuggestions, setTagSuggestions] = useState([]);
+  const summaryStatus = useStatus();
+  const metadataStatus = useStatus();
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const [similarBooks, setSimilarBooks] = useState([]);
   const [loadingSimilar, setLoadingSimilar] = useState(false);
@@ -145,7 +148,7 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
       });
       const data = await response.json();
       if (data.error) {
-        alert(`Summary generation failed: ${data.error}`);
+        summaryStatus.error(`Could not generate a summary: ${data.error}`);
       } else {
         setSummary({
           summary: data.summary,
@@ -156,7 +159,7 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
       }
     } catch (error) {
       console.error('Failed to generate summary:', error);
-      alert('Failed to generate summary. Please try again.');
+      summaryStatus.error('Could not reach the summary service. Is the server running?');
     } finally {
       setLoadingSummary(false);
     }
@@ -164,6 +167,12 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
 
   // Suggestions come from the local model via Ollama, which picks from a fixed
   // vocabulary. It falls back to keyword matching by itself when Ollama is off.
+  useEffect(() => {
+    summaryStatus.clear();
+    metadataStatus.clear();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [book?.id]);
+
   const fetchTagSuggestions = async () => {
     if (!book?.id) return;
 
@@ -331,14 +340,15 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
           onCollectionChange();
         }
 
-        // Show success message
-        alert(`Metadata enriched successfully!\nSource: ${data.book.metadata_source || 'Multiple sources'}`);
+        metadataStatus.success(
+          `Updated from ${data.book.metadata_source || 'external sources'}`
+        );
       } else {
-        alert(data.message || 'No additional metadata found for this book');
+        metadataStatus.info(data.message || 'Nothing further found for this book');
       }
     } catch (error) {
       console.error('Failed to enrich metadata:', error);
-      alert('Failed to enrich metadata. Please try again.');
+      metadataStatus.error('Could not reach the metadata service. Is the server running?');
     } finally {
       setIsEnrichingMetadata(false);
     }
@@ -503,6 +513,11 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
                   )}
                 </div>
               </div>
+              <StatusNote
+                status={summaryStatus.status}
+                onDismiss={summaryStatus.clear}
+                className="mb-2"
+              />
               {loadingSummary && (
                 <div className="flex items-center gap-2 p-3 bg-accent-soft rounded-md">
                   <div className="w-4 h-4 border-t-2 border-accent border-solid rounded-full animate-spin"></div>
@@ -660,7 +675,7 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
                     <span className="text-sm font-medium text-ink-muted">Suggested Tags:</span>
                     <button
                       onClick={applyAllSuggestions}
-                      className="text-xs px-3 py-1 bg-emerald-500/100 text-white rounded hover:bg-green-600"
+                      className="text-xs px-3 py-1 bg-emerald-600 text-white rounded hover:bg-emerald-700"
                     >
                       Apply All
                     </button>
@@ -712,13 +727,16 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
             {/* Status Indicators */}
             <div className="flex gap-4">
               {book.needs_review === 1 && (
-                <span className="px-3 py-1 bg-red-500/100/10 text-red-700 dark:text-red-300 rounded-full text-sm">
+                <span className="px-3 py-1 bg-red-500/10 text-red-700 dark:text-red-300 rounded-full text-sm">
                   ⚠️ Needs Review
                 </span>
               )}
               {book.metadata_source && (
-                <span className="px-3 py-1 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 rounded-full text-sm">
-                  📚 {book.metadata_source}
+                <span
+                  className="px-3 py-1 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 rounded-full text-sm"
+                  title="Where this book's metadata came from"
+                >
+                  Source: {book.metadata_source}
                 </span>
               )}
               {book.average_rating && (
@@ -828,6 +846,12 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
                 </button>
               </div>
 
+              <StatusNote
+                status={metadataStatus.status}
+                onDismiss={metadataStatus.clear}
+                className="w-full sm:w-auto sm:min-w-[16rem]"
+              />
+
               <div className="flex gap-2">
                 {isEditing ? (
                   <>
@@ -839,7 +863,7 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
                     </button>
                     <button
                       onClick={handleSave}
-                      className="px-4 py-2 bg-emerald-500/100 text-white rounded-md hover:bg-green-600"
+                      className="px-4 py-2 rounded-md bg-emerald-600 text-white hover:bg-emerald-700"
                     >
                       Save
                     </button>

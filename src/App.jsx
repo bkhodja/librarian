@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import BookDetailModal from './components/BookDetailModal';
 import BookCard from './components/BookCard';
 import FilterSelect from './components/FilterSelect';
+import StatusNote, { useStatus } from './components/StatusNote';
 import BulkActionsModal from './components/BulkActionsModal';
 import CollectionsSidebar from './components/CollectionsSidebar';
 import FullTextSearch from './components/FullTextSearch';
@@ -94,6 +95,7 @@ function App() {
   // screenful and extend as the sentinel below the grid scrolls into view.
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [totalBooks, setTotalBooks] = useState(0);
+  const appStatus = useStatus();
 
   // When the library was last looked at, so "Recently Added" can say how many
   // books have arrived since. Per-viewer and cosmetic, so localStorage rather
@@ -438,12 +440,16 @@ function App() {
         method: 'POST',
       });
       const data = await response.json();
-      console.log('Processing completed:', data);
-      alert(`Processed ${data.processed} books. ${data.errors} errors.`);
+      if (data.errors) {
+        appStatus.error(`Processed ${data.processed} book(s), ${data.errors} failed`);
+      } else {
+        appStatus.success(`Processed ${data.processed} book(s)`);
+      }
       // Reload books after processing
       await loadBooks();
     } catch (error) {
       console.error('Processing failed:', error);
+      appStatus.error('Could not reach the server to process books');
     } finally {
       setLoading(false);
     }
@@ -705,7 +711,7 @@ function App() {
                   <button
                     onClick={() => setIsBulkActionsModalOpen(true)}
                     disabled={selectedBookIds.size === 0}
-                    className="px-3 py-1 text-sm bg-emerald-500/100 text-white rounded hover:bg-green-600 disabled:opacity-50"
+                    className="px-3 py-1 text-sm bg-emerald-600 text-white rounded hover:bg-emerald-700 disabled:opacity-50"
                   >
                     Bulk Actions
                   </button>
@@ -870,6 +876,12 @@ function App() {
           )}
         </div>
       </div>
+
+      {appStatus.status && (
+        <div className="px-6 pt-3 lg:px-8">
+          <StatusNote status={appStatus.status} onDismiss={appStatus.clear} />
+        </div>
+      )}
 
       {/* Full-text Search Section */}
       {showFullTextSearch && (

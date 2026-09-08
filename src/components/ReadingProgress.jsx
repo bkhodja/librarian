@@ -106,7 +106,7 @@ function ReadingProgress({ book, className = '', compact = false, onUpdate }) {
           <div className="flex-1 bg-surface-sunken rounded-full h-2 overflow-hidden">
             <div
               className={`h-full transition-all duration-300 ${
-                percentage === 100 ? 'bg-emerald-500/100' :
+                percentage === 100 ? 'bg-emerald-500' :
                 percentage > 0 ? 'bg-accent' : 'bg-ink-faint'
               }`}
               style={{ width: `${percentage}%` }}
@@ -151,7 +151,7 @@ function ReadingProgress({ book, className = '', compact = false, onUpdate }) {
               </button>
               <button
                 onClick={markAsFinished}
-                className="px-3 py-1 text-sm bg-emerald-500/100 text-white rounded hover:bg-green-600"
+                className="px-3 py-1 text-sm bg-emerald-600 text-white rounded hover:bg-emerald-700"
               >
                 Mark as Finished
               </button>
@@ -171,7 +171,7 @@ function ReadingProgress({ book, className = '', compact = false, onUpdate }) {
         <div className="w-full bg-surface-sunken rounded-full h-3 overflow-hidden">
           <div
             className={`h-full transition-all duration-300 ${
-              percentage === 100 ? 'bg-emerald-500/100' :
+              percentage === 100 ? 'bg-emerald-500' :
               percentage > 0 ? 'bg-accent' : 'bg-ink-faint'
             }`}
             style={{ width: `${percentage}%` }}

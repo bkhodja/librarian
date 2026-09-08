@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import StatusNote, { useStatus } from './StatusNote';
 
 function CollectionsSidebar({ selectedCollection, onCollectionSelect, selectedBookIds, isSelectionMode, onBooksAdded, unseenCount = 0 }) {
+  const status = useStatus();
   const [collections, setCollections] = useState([]);
   const [isCreating, setIsCreating] = useState(false);
   const [newCollectionName, setNewCollectionName] = useState('');
@@ -70,7 +72,7 @@ function CollectionsSidebar({ selectedCollection, onCollectionSelect, selectedBo
 
       if (response.ok) {
         const result = await response.json();
-        alert(result.message);
+        status.success(result.message);
         await loadCollections(); // Refresh counts
         if (onBooksAdded) {
           onBooksAdded(); // Trigger parent refresh
@@ -119,6 +121,8 @@ function CollectionsSidebar({ selectedCollection, onCollectionSelect, selectedBo
             </button>
           )}
         </div>
+
+        <StatusNote status={status.status} onDismiss={status.clear} className="mb-3" />
 
         {isCreating && (
           <div className="mb-4">

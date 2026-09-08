@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import StatusNote, { useStatus } from './StatusNote';
 
 const OCRStatus = () => {
   const [stats, setStats] = useState(null);
@@ -54,14 +55,14 @@ const OCRStatus = () => {
       const data = await response.json();
 
       if (data.success) {
-        alert(`Added ${data.queued} books to OCR queue`);
+        status.success(`Queued ${data.queued} book(s) for OCR`);
         fetchStats();
       } else {
-        alert(data.message || 'Failed to start batch OCR');
+        status.error(data.message || 'Could not start batch OCR');
       }
     } catch (error) {
       console.error('Failed to start batch OCR:', error);
-      alert('Failed to start batch OCR');
+      status.error('Could not reach the OCR service');
     } finally {
       setLoading(false);
     }
@@ -75,7 +76,7 @@ const OCRStatus = () => {
       const data = await response.json();
 
       if (data.success) {
-        alert(`Cleared ${data.cleared} completed jobs`);
+        status.success(`Cleared ${data.cleared} completed job(s)`);
         fetchStats();
         fetchQueueItems();
       }
@@ -92,7 +93,7 @@ const OCRStatus = () => {
       const data = await response.json();
 
       if (data.success) {
-        alert('Reset failed jobs for retry');
+        status.success('Failed jobs queued for another attempt');
         fetchStats();
         fetchQueueItems();
       }
@@ -194,6 +195,12 @@ const OCRStatus = () => {
               </button>
             </div>
 
+            <StatusNote
+              status={status.status}
+              onDismiss={status.clear}
+              className="mb-4"
+            />
+
             {/* Statistics */}
             <div className="grid grid-cols-4 gap-4 mb-6">
               <div className="bg-surface-sunken p-3 rounded">
@@ -219,7 +226,7 @@ const OCRStatus = () => {
               {stats.queue.completed > 0 && (
                 <button
                   onClick={clearCompleted}
-                  className="px-3 py-1 bg-emerald-500/100 text-white text-sm rounded hover:bg-green-600"
+                  className="px-3 py-1 bg-emerald-600 text-white text-sm rounded hover:bg-emerald-700"
                 >
                   Clear Completed
                 </button>
@@ -227,7 +234,7 @@ const OCRStatus = () => {
               {stats.queue.failed > 0 && (
                 <button
                   onClick={resetFailed}
-                  className="px-3 py-1 bg-orange-500/100 text-white text-sm rounded hover:bg-orange-600"
+                  className="px-3 py-1 bg-orange-600 text-white text-sm rounded hover:bg-orange-600"
                 >
                   Retry Failed
                 </button>

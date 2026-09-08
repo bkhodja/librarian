@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import StatusNote, { useStatus } from './StatusNote';
 
 const DuplicateManager = () => {
   const [duplicateGroups, setDuplicateGroups] = useState([]);
@@ -31,7 +32,7 @@ const DuplicateManager = () => {
 
   const handleMerge = async (group) => {
     if (!keepBookId) {
-      alert('Please select a book to keep');
+      status.info('Choose which copy to keep first');
       return;
     }
 
@@ -40,7 +41,7 @@ const DuplicateManager = () => {
       .map(d => d.book.id);
 
     if (removeBookIds.length === 0) {
-      alert('No duplicates to merge');
+      status.info('Nothing to merge — only one copy is selected');
       return;
     }
 
@@ -61,16 +62,16 @@ const DuplicateManager = () => {
       const data = await response.json();
 
       if (data.success) {
-        alert(data.message);
+        status.success(data.message);
         fetchDuplicates(); // Refresh the list
         setSelectedGroup(null);
         setKeepBookId(null);
       } else {
-        alert(data.error || 'Failed to merge duplicates');
+        status.error(data.error || 'Could not merge these duplicates');
       }
     } catch (error) {
       console.error('Failed to merge duplicates:', error);
-      alert('Failed to merge duplicates');
+      status.error('Could not reach the server to merge');
     }
   };
 
@@ -91,14 +92,14 @@ const DuplicateManager = () => {
       const data = await response.json();
 
       if (data.success) {
-        alert(data.message);
+        status.success(data.message);
         fetchDuplicates(); // Refresh the list
       } else {
-        alert(data.error || 'Failed to remove book');
+        status.error(data.error || 'Could not remove that book');
       }
     } catch (error) {
       console.error('Failed to remove book:', error);
-      alert('Failed to remove book');
+      status.error('Could not reach the server to remove that book');
     }
   };
 
@@ -148,6 +149,12 @@ const DuplicateManager = () => {
                 </button>
               </div>
 
+              <StatusNote
+                status={status.status}
+                onDismiss={status.clear}
+                className="mb-4"
+              />
+
               {loading && (
                 <div className="mt-4 text-center">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent mx-auto"></div>
@@ -186,7 +193,7 @@ const DuplicateManager = () => {
                         <div className="flex space-x-2">
                           <button
                             onClick={() => handleMerge(group)}
-                            className="px-3 py-1 bg-emerald-500/100 text-white rounded text-sm hover:bg-green-600"
+                            className="px-3 py-1 bg-emerald-600 text-white rounded text-sm hover:bg-emerald-700"
                           >
                             Merge Selected
                           </button>
@@ -220,7 +227,7 @@ const DuplicateManager = () => {
                           className={`p-3 rounded-lg border ${
                             selectedGroup === group.groupId
                               ? keepBookId === duplicate.book.id
-                                ? 'border-green-500 bg-emerald-500/10/20'
+                                ? 'border-green-500 bg-emerald-500/10'
                                 : 'border-hairline'
                               : 'border-hairline'
                           }`}
@@ -303,7 +310,7 @@ const DuplicateManager = () => {
                     </div>
 
                     {selectedGroup === group.groupId && (
-                      <div className="mt-3 p-3 bg-amber-500/15/20 border border-yellow-200 dark:border-yellow-800 rounded">
+                      <div className="mt-3 p-3 bg-amber-500/10 border border-yellow-200 dark:border-yellow-800 rounded">
                         <p className="text-sm text-yellow-800 dark:text-yellow-200">
                           <strong>Instructions:</strong> Select the book you want to keep (green border), then click "Merge Selected".
                           The metadata from removed books will be merged into the kept book.

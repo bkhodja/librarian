@@ -73,7 +73,7 @@ function ReadingStatsDashboard({ isDark }) {
           </div>
         </div>
 
-        <div className="bg-emerald-500/10/20 p-4 rounded-lg">
+        <div className="bg-emerald-500/10 p-4 rounded-lg">
           <div className="text-green-600 dark:text-green-400 text-sm font-medium mb-1">
             Books Finished
           </div>
@@ -91,7 +91,7 @@ function ReadingStatsDashboard({ isDark }) {
           </div>
         </div>
 
-        <div className="bg-orange-500/100/10/20 p-4 rounded-lg">
+        <div className="bg-orange-500/10 p-4 rounded-lg">
           <div className="text-orange-600 dark:text-orange-400 text-sm font-medium mb-1">
             Completion Rate
           </div>
