@@ -80,6 +80,8 @@ const OCRStatus = () => {
         notice.success(`Cleared ${data.cleared} completed job(s)`);
         fetchStats();
         fetchQueueItems();
+      } else {
+        notice.error(data.error || 'Could not clear completed jobs');
       }
     } catch (error) {
       console.error('Failed to clear completed jobs:', error);
@@ -97,6 +99,8 @@ const OCRStatus = () => {
         notice.success('Failed jobs queued for another attempt');
         fetchStats();
         fetchQueueItems();
+      } else {
+        notice.error(data.error || 'Could not reset the failed jobs');
       }
     } catch (error) {
       console.error('Failed to reset failed jobs:', error);
@@ -112,9 +116,12 @@ const OCRStatus = () => {
       if (response.ok) {
         fetchStats();
         fetchQueueItems();
+      } else {
+        notice.error('Could not remove that book from the queue');
       }
     } catch (error) {
       console.error('Failed to remove from queue:', error);
+      notice.error('Could not reach the server');
     }
   };
 

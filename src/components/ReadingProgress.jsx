@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import StatusNote, { useStatus } from './StatusNote';
 
 function ReadingProgress({ book, className = '', compact = false, onUpdate }) {
   const [progress, setProgress] = useState(book?.readingProgress || null);
+  const notice = useStatus();
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState(false);
   const [currentPage, setCurrentPage] = useState(book?.readingProgress?.current_page || 0);
@@ -49,6 +51,8 @@ function ReadingProgress({ book, className = '', compact = false, onUpdate }) {
         setCurrentPage(data.current_page);
         setEditing(false);
         if (onUpdate) onUpdate(data);
+      } else {
+        notice.error('Could not save your place');
       }
     } catch (error) {
       console.error('Error updating progress:', error);
@@ -65,9 +69,12 @@ function ReadingProgress({ book, className = '', compact = false, onUpdate }) {
 
       if (response.ok) {
         fetchProgress();
+      } else {
+        notice.error('Could not mark this as started');
       }
     } catch (error) {
       console.error('Error marking as started:', error);
+      notice.error('Could not reach the server');
     }
   };
 
@@ -79,9 +86,12 @@ function ReadingProgress({ book, className = '', compact = false, onUpdate }) {
 
       if (response.ok) {
         fetchProgress();
+      } else {
+        notice.error('Could not mark this as finished');
       }
     } catch (error) {
       console.error('Error marking as finished:', error);
+      notice.error('Could not reach the server');
     }
   };
 
@@ -128,6 +138,7 @@ function ReadingProgress({ book, className = '', compact = false, onUpdate }) {
   // Full view for book detail modal
   return (
     <div className={`rounded-lg bg-surface ring-1 ring-hairline p-4 ${className}`}>
+      <StatusNote status={notice.status} onDismiss={notice.clear} className="mb-2" />
       <div className="flex justify-between items-start mb-3">
         <h3 className="text-lg font-semibold text-ink">
           Reading Progress

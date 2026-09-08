@@ -23,9 +23,14 @@ const DuplicateManager = ({ onLibraryChanged }) => {
 
       if (data.success) {
         setDuplicateGroups(data.groups || []);
+      } else {
+        // Without this the modal shows an empty list, which reads as
+        // "no duplicates found" rather than "the scan failed".
+        notice.error(data.error || 'Could not scan for duplicates');
       }
     } catch (error) {
       console.error('Failed to fetch duplicates:', error);
+      notice.error('Could not reach the server to scan for duplicates');
     } finally {
       setLoading(false);
     }

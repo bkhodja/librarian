@@ -13,6 +13,8 @@ const EpubViewer = ({ bookId, filePath, onClose }) => {
 
   // Load saved progress on mount
   useEffect(() => {
+    // A missing or failed lookup here just means starting at the beginning,
+    // so it stays silent on purpose.
     const loadProgress = async () => {
       try {
         const response = await fetch(`http://localhost:3001/api/progress/${bookId}`);

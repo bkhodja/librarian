@@ -182,13 +182,30 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
       const response = await fetch(`http://localhost:3001/api/ai-tags/suggest/${book.id}`);
       const data = await response.json();
 
+      if (!response.ok) {
+        metadataStatus.error(data.error || 'Could not get suggestions');
+        return;
+      }
+
       if (Array.isArray(data.tags)) {
         // Do not offer what the book already carries.
         const existing = new Set((tags || []).map((t) => t.name || t));
-        setTagSuggestions(data.tags.filter((t) => !existing.has(t)));
+        const fresh = data.tags.filter((t) => !existing.has(t));
+        setTagSuggestions(fresh);
+
+        // Filtering everything out is the common case for an already-tagged
+        // book, and rendering an empty list looks like the button did nothing.
+        if (fresh.length === 0) {
+          metadataStatus.info(
+            data.tags.length
+              ? 'Nothing new — the model picked tags this book already has'
+              : 'The model could not suggest a tag for this book'
+          );
+        }
       }
     } catch (error) {
       console.error('Failed to fetch tag suggestions:', error);
+      metadataStatus.error('Could not reach the server for suggestions');
     } finally {
       setLoadingSuggestions(false);
     }
@@ -211,6 +228,8 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
         fetchTags(book.id);
         // Remove the applied suggestion from the list
         setTagSuggestions(tagSuggestions.filter(s => s !== tagName));
+      } else {
+        metadataStatus.error(data.error || `Could not add the tag "${tagName}"`);
       }
     } catch (error) {
       console.error('Failed to apply tag suggestion:', error);
@@ -234,6 +253,8 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
         fetchTags(book.id);
         // Clear all suggestions
         setTagSuggestions([]);
+      } else {
+        metadataStatus.error(data.error || 'Could not add those tags');
       }
     } catch (error) {
       console.error('Failed to apply tag suggestions:', error);
@@ -293,9 +314,13 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
       if (response.ok) {
         fetchTags(book.id);
         setNewTag('');
+      } else {
+        const detail = await response.json().catch(() => ({}));
+        metadataStatus.error(detail.error || `Could not add the tag "${newTag.trim()}"`);
       }
     } catch (error) {
       console.error('Failed to add tag:', error);
+      metadataStatus.error('Could not reach the server to add that tag');
     }
   };
 
@@ -307,9 +332,12 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
 
       if (response.ok) {
         setTags(tags.filter(tag => tag.id !== tagId));
+      } else {
+        metadataStatus.error('Could not remove that tag');
       }
     } catch (error) {
       console.error('Failed to remove tag:', error);
+      metadataStatus.error('Could not reach the server to remove that tag');
     }
   };
 

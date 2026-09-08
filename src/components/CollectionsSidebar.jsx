@@ -55,9 +55,13 @@ function CollectionsSidebar({ selectedCollection, onCollectionSelect, selectedBo
         setNewCollectionName('');
         setIsCreating(false);
         await loadCollections();
+      } else {
+        const detail = await response.json().catch(() => ({}));
+        notice.error(detail.error || 'Could not create that shelf');
       }
     } catch (error) {
       console.error('Failed to create collection:', error);
+      notice.error('Could not reach the server');
     }
   };
 
@@ -79,9 +83,13 @@ function CollectionsSidebar({ selectedCollection, onCollectionSelect, selectedBo
         if (onBooksAdded) {
           onBooksAdded(); // Trigger parent refresh
         }
+      } else {
+        const detail = await response.json().catch(() => ({}));
+        notice.error(detail.error || 'Could not add those books');
       }
     } catch (error) {
       console.error('Failed to add books to collection:', error);
+      notice.error('Could not reach the server');
     } finally {
       setLoading(false);
     }
@@ -100,6 +108,9 @@ function CollectionsSidebar({ selectedCollection, onCollectionSelect, selectedBo
         if (selectedCollection === id) {
           onCollectionSelect(null);
         }
+      } else {
+        const detail = await response.json().catch(() => ({}));
+        notice.error(detail.error || 'Could not delete that shelf');
       }
     } catch (error) {
       console.error('Failed to delete collection:', error);

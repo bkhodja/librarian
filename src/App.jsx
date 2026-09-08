@@ -712,9 +712,13 @@ function App() {
 
       if (response.ok) {
         await loadBooks(); // Reload to update the list
+      } else {
+        const detail = await response.json().catch(() => ({}));
+        appStatus.error(detail.error || 'Could not remove that book from the shelf');
       }
     } catch (error) {
       console.error('Failed to remove book from collection:', error);
+      appStatus.error('Could not reach the server');
     }
   };
 
