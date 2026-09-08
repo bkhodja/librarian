@@ -202,8 +202,166 @@ function bestTitle({ extracted, existing, filePath }) {
   return cleanTitle(existing) || cleanTitle(extracted) || fromFile || null;
 }
 
+/*
+ * Publisher, edition and description come off the same copyright page as the
+ * author and fail the same way: a sentence fragment from the liability notice
+ * lands in `publisher`, the word "edition" from any passing sentence lands in
+ * `edition`, and a table of contents lands in `description`.
+ */
+
+// Legal prose reads as a clause, not a name. These verbs never appear in one.
+const LEGAL_CLAUSE = /\b(cannot|can not|does not|do not|shall|shall not|may not|will not|is not|are not|assume[sd]?|provide[sd]?|responsib|liab|guarantee|warrant|disclaim|represent|endorse|accept)\b/i;
+
+const PUBLISHER_ALIASES = new Map([
+  ['oreilly', "O'Reilly Media"],
+  ['oreilly media', "O'Reilly Media"],
+  ['o reilly', "O'Reilly Media"],
+  ['packt', 'Packt'],
+  ['packt publishing', 'Packt'],
+  ['packt publishing ltd', 'Packt'],
+  ['manning', 'Manning'],
+  ['manning publications', 'Manning'],
+  ['apress', 'Apress'],
+  ['no starch press', 'No Starch Press'],
+  ['pragmatic bookshelf', 'Pragmatic Bookshelf'],
+  ['the pragmatic bookshelf', 'Pragmatic Bookshelf'],
+  ['addison wesley', 'Addison-Wesley'],
+  ['addison-wesley', 'Addison-Wesley'],
+  ['wiley', 'Wiley'],
+  ['john wiley sons', 'Wiley'],
+  ['springer', 'Springer'],
+  ['pearson', 'Pearson'],
+  ['mcgraw hill', 'McGraw-Hill'],
+  ['mcgraw-hill', 'McGraw-Hill'],
+  ['microsoft press', 'Microsoft Press'],
+  ['mit press', 'MIT Press'],
+  ['the mit press', 'MIT Press'],
+  ['cambridge university press', 'Cambridge University Press'],
+  ['oxford university press', 'Oxford University Press'],
+  ['crc press', 'CRC Press'],
+  ['питер', 'Питер'],
+  ['дмк пресс', 'ДМК Пресс'],
+  ['бхв-петербург', 'БХВ-Петербург']
+]);
+
+/**
+ * A publisher is a name: short, capitalised, no verbs. Known imprints are
+ * folded to one spelling so "O'Reilly", "O’Reilly Media" and "OReilly" stop
+ * splitting the same publisher across three filter entries.
+ */
+function cleanPublisher(value) {
+  if (!value || typeof value !== 'string') return null;
+
+  // PDF text extraction leaves doubled spaces and line breaks mid-phrase.
+  let name = value.replace(/\s+/g, ' ').trim().replace(/[.,;:]+$/, '');
+
+  if (name.length < 2 || name.length > 60) return null;
+  if (!hasLetters(name)) return null;
+  if (name.includes('\n')) return null;
+
+  const key = name.toLowerCase().replace(/[^a-zа-яё0-9 ]/gi, '').replace(/\s+/g, ' ').trim();
+  if (PUBLISHER_ALIASES.has(key)) return PUBLISHER_ALIASES.get(key);
+
+  if (LEGAL_CLAUSE.test(name)) return null;
+  if (BOILERPLATE.test(name)) return null;
+
+  // A publisher line starts with a capital; a scraped mid-sentence fragment
+  // ("cannot assume responsibility…", "does not provide medical…") does not.
+  if (!/^[A-ZА-ЯЁ0-9]/.test(name)) return null;
+
+  // Names are a handful of words, not a clause.
+  if (name.split(' ').length > 6) return null;
+
+  return name;
+}
+
+function isPlausiblePublisher(value) {
+  return cleanPublisher(value) !== null;
+}
+
+// What an edition actually looks like, in either language.
+const EDITION_PATTERNS = [
+  /^\d+(?:st|nd|rd|th)\s+edition$/i,
+  /^(?:first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth)\s+edition$/i,
+  /^(?:revised|updated|expanded|international|global|annotated|anniversary|special|deluxe)\s+edition$/i,
+  /^\d+-?[ея]\s*(?:изд\.?|издание)$/i,
+  /^edition\s+\d+$/i,
+  /^v?\d+(?:\.\d+)*$/i
+];
+
+/**
+ * Only accept an edition that matches a recognised form. The extractor matched
+ * the word "edition" anywhere, which produced "edition of", "edition
+ * published" and "Edition\nRevision" on hundreds of books.
+ */
+function cleanEdition(value) {
+  if (!value || typeof value !== 'string') return null;
+
+  // Keep a trailing period: it belongs to the Russian abbreviation "изд.".
+  const edition = value.replace(/\s+/g, ' ').trim().replace(/[,;:]+$/, '');
+  if (!edition) return null;
+
+  const match = EDITION_PATTERNS.some((pattern) => pattern.test(edition));
+  if (!match) return null;
+
+  // Normalise capitalisation: "2ND EDITION" and "2nd edition" are one thing.
+  return edition.replace(/\bedition\b/gi, 'Edition');
+}
+
+function isPlausibleEdition(value) {
+  return cleanEdition(value) !== null;
+}
+
+/**
+ * A description should be prose about the book. What the extractor picked up
+ * instead was front matter: copyright blocks, ISBN lines, the reproduction
+ * notice, and tables of contents held together by dot leaders.
+ */
+function cleanDescription(value) {
+  if (!value || typeof value !== 'string') return null;
+
+  let text = value.replace(/\r/g, '').replace(/[ \t]+/g, ' ').trim();
+  if (text.length < 60) return null;
+
+  // Dot leaders mean a table of contents.
+  if (/\.{5,}/.test(text)) return null;
+
+  // Front matter: a copyright or ISBN block rather than a blurb.
+  if (/^(?:isbn\b|©|\(c\)\s|copyright\b)/i.test(text)) return null;
+  if (/©/.test(text.slice(0, 200))) return null;
+
+  // The reproduction notice, which appears in most technical books verbatim.
+  if (/(prohibited reproduction|retrieval system|all rights reserved|no part of this (?:book|publication)|without (?:the )?(?:prior )?written permission)/i.test(text)) {
+    return null;
+  }
+
+  // Prose has sentences. A run of headings, page numbers or a licence block
+  // does not.
+  const letters = (text.match(/[a-zA-Zа-яА-ЯёЁ]/g) || []).length;
+  if (letters / text.length < 0.6) return null;
+
+  // Trim to a readable length on a sentence boundary where possible.
+  if (text.length > 1200) {
+    const cut = text.slice(0, 1200);
+    const stop = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('! '), cut.lastIndexOf('? '));
+    text = stop > 400 ? cut.slice(0, stop + 1) : cut.trimEnd() + '…';
+  }
+
+  return text;
+}
+
+function isPlausibleDescription(value) {
+  return cleanDescription(value) !== null;
+}
+
 module.exports = {
   cleanAuthor,
+  cleanPublisher,
+  isPlausiblePublisher,
+  cleanEdition,
+  isPlausibleEdition,
+  cleanDescription,
+  isPlausibleDescription,
   isPlausibleAuthor,
   cleanTitle,
   isPlausibleTitle,

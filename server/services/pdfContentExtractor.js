@@ -91,12 +91,14 @@ class PDFContentExtractor {
       // Extract all metadata
       const metadata = {
         isbn: this.extractISBN(searchText) || this.extractISBN(data.text),
-        publisher: this.extractPublisher(searchText) || this.extractPublisher(data.text),
+        publisher: quality.cleanPublisher(
+          this.extractPublisher(searchText) || this.extractPublisher(data.text)
+        ),
         publicationYear: this.extractYear(searchText) || this.extractYear(data.text),
         authors: this.extractAuthors(firstPages, authorContext) ||
                  this.extractAuthors(data.text.substring(0, 10000), authorContext),
-        edition: this.extractEdition(searchText),
-        description: this.extractDescription(firstPages),
+        edition: quality.cleanEdition(this.extractEdition(searchText)),
+        description: quality.cleanDescription(this.extractDescription(firstPages)),
         // Also keep the full text for language detection
         fullText: data.text.substring(0, 10000)
       };

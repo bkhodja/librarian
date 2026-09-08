@@ -41,10 +41,10 @@ function normalizePdf(result) {
     pdfType: result.pdfType || null,
     ocrConfidence: result.ocrData?.confidence ?? null,
     isbn: metadata.isbn || null,
-    publisher: metadata.publisher || null,
+    publisher: quality.cleanPublisher(metadata.publisher),
     publicationYear: metadata.publicationYear || metadata.yearFromFilename || null,
-    edition: metadata.edition || null,
-    description: metadata.description || null,
+    edition: quality.cleanEdition(metadata.edition),
+    description: quality.cleanDescription(metadata.description),
     needsReview: Boolean(result.needsReview),
     error: result.error || null
   };
@@ -67,10 +67,10 @@ function normalizeEpub(result) {
     pdfType: null,
     ocrConfidence: null,
     isbn: metadata.isbn || null,
-    publisher: metadata.publisher || null,
+    publisher: quality.cleanPublisher(metadata.publisher),
     publicationYear: metadata.publicationYear || null,
-    edition: metadata.edition || null,
-    description: metadata.description || null,
+    edition: quality.cleanEdition(metadata.edition),
+    description: quality.cleanDescription(metadata.description),
     needsReview: false,
     error: result.error || null
   };
