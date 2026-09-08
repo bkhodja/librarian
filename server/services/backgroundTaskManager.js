@@ -4,10 +4,14 @@ const fs = require('fs').promises;
 const chokidar = require('chokidar');
 const epubProcessor = require('./epubProcessorImproved'); // Use improved processor with cover extraction
 const processorPool = require('./bookProcessorPool');
+const metadataEnricher = require('./bookMetadataEnricher');
+const quality = require('./metadataQuality');
 
 const THUMBNAIL_BATCH_SIZE = Number(process.env.THUMBNAIL_BATCH_SIZE) || 25;
 const THUMBNAIL_CONCURRENCY = Number(process.env.THUMBNAIL_CONCURRENCY) || 3;
 const PROCESS_CONCURRENCY = Number(process.env.PROCESSOR_WORKERS) || 2;
+const ENRICH_BATCH_SIZE = Number(process.env.ENRICH_BATCH_SIZE) || 25;
+const ENRICH_DELAY_MS = Number(process.env.ENRICH_DELAY_MS) || 1000;
 const thumbnailGenerator = require('./thumbnailGeneratorPdf2pic');
 const EventEmitter = require('events');
 
@@ -19,6 +23,10 @@ class BackgroundTaskManager extends EventEmitter {
     this.processingQueue = new Set();
     this.activeJobs = 0;
     this.isGeneratingThumbnails = false;
+    this.isEnriching = false;
+    // Books tried this run, so a lookup that finds nothing is not repeated
+    // every five minutes. Cleared on restart, which retries after an outage.
+    this.enrichAttempted = new Set();
     this.scanInterval = null;
     this.processInterval = null;
     this.thumbnailInterval = null;
@@ -238,6 +246,64 @@ class BackgroundTaskManager extends EventEmitter {
     this.scanInterval = setInterval(() => {
       this.performInitialScan();
     }, 3600000);
+
+    // Repair poor titles and authors against Open Library / Google Books.
+    this.enrichInterval = setInterval(() => {
+      this.enrichPoorMetadata();
+    }, 300000);
+
+    // Start one pass shortly after boot rather than waiting out the interval.
+    setTimeout(() => this.enrichPoorMetadata(), 15000);
+  }
+
+  /**
+   * Look up books whose title or author failed the quality check and that carry
+   * an ISBN, and replace those fields from an external source. The ISBN is the
+   * one thing the extractor reads reliably, so it is the key to everything
+   * else. Network failures are expected and simply end the pass.
+   */
+  async enrichPoorMetadata() {
+    if (this.isEnriching) return;
+    this.isEnriching = true;
+
+    try {
+      const candidates = db.prepare(`
+        SELECT id, title, author, isbn FROM books
+        WHERE isbn IS NOT NULL
+          AND needs_review = 0
+          AND metadata_source IS NULL
+      `).all();
+
+      const needsWork = candidates.filter((book) =>
+        !this.enrichAttempted.has(book.id) &&
+        (!quality.isPlausibleTitle(book.title) ||
+         !quality.isPlausibleAuthor(book.author, { title: book.title }))
+      ).slice(0, ENRICH_BATCH_SIZE);
+
+      if (needsWork.length === 0) return;
+
+      console.log(`🔎 Repairing metadata for ${needsWork.length} book(s) by ISBN`);
+
+      for (const book of needsWork) {
+        this.enrichAttempted.add(book.id);
+
+        try {
+          const updated = await metadataEnricher.enrichBook(book.id);
+          if (updated) {
+            console.log(`   ✅ ${book.isbn} → ${updated.title} — ${updated.author || 'no author'}`);
+          }
+        } catch (error) {
+          console.error(`   ❌ ${book.isbn}: ${error.message}`);
+        }
+
+        // Be a good citizen with a free API.
+        await new Promise((resolve) => setTimeout(resolve, ENRICH_DELAY_MS));
+      }
+    } catch (error) {
+      console.error('Metadata enrichment pass failed:', error.message);
+    } finally {
+      this.isEnriching = false;
+    }
   }
 
   async fileExists(filePath) {
@@ -457,6 +523,7 @@ class BackgroundTaskManager extends EventEmitter {
     if (this.scanInterval) clearInterval(this.scanInterval);
     if (this.processInterval) clearInterval(this.processInterval);
     if (this.thumbnailInterval) clearInterval(this.thumbnailInterval);
+    if (this.enrichInterval) clearInterval(this.enrichInterval);
 
     await processorPool.shutdown();
 
