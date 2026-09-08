@@ -340,20 +340,30 @@ class BackgroundTaskManager extends EventEmitter {
 
       if (ext === '.pdf') {
         // Use PDF thumbnail generator
-        result = await thumbnailGenerator.generateThumbnail(
-          book.file_path,
-          book.id || book.file_path
-        );
+        try {
+          result = await thumbnailGenerator.generateThumbnail(
+            book.file_path,
+            book.id || book.file_path
+          );
+        } catch (pdfError) {
+          console.error(`PDF thumbnail generation failed for book ${book.id}:`, pdfError.message);
+          return;
+        }
       } else if (ext === '.epub') {
         // Use ePUB thumbnail generator
         const thumbnailPath = path.join(__dirname, '../../public/thumbnails', `${book.id}.png`);
-        result = await epubProcessor.generateThumbnail(book.file_path, thumbnailPath);
+        try {
+          result = await epubProcessor.generateThumbnail(book.file_path, thumbnailPath);
+        } catch (epubError) {
+          console.error(`ePUB thumbnail generation failed for book ${book.id}:`, epubError.message);
+          return;
+        }
       } else {
         console.error(`Unsupported file type for thumbnail: ${ext}`);
         return;
       }
 
-      if (result.success) {
+      if (result && result.success && result.thumbnailPath && typeof result.thumbnailPath === 'string') {
         // Convert absolute path to relative path for web serving
         let thumbnailPath = result.thumbnailPath;
         if (thumbnailPath.includes('/public/thumbnails/')) {
@@ -369,7 +379,8 @@ class BackgroundTaskManager extends EventEmitter {
         console.log(`✅ Thumbnail generated for: ${path.basename(book.file_path)}`);
       }
     } catch (error) {
-      console.error(`Error generating thumbnail for book ${book.id}:`, error);
+      console.error(`Error generating thumbnail for book ${book.id}:`, error.message);
+      // Don't throw - just log and continue
     }
   }
 
