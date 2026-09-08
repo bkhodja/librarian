@@ -242,20 +242,35 @@ router.get('/', (req, res) => {
 
     const books = db.prepare(query).all(...params);
 
+    // Fetch all tags for all books in one query for performance
+    const bookIds = books.map(b => b.id);
+    let allTags = [];
+
+    if (bookIds.length > 0) {
+      const placeholders = bookIds.map(() => '?').join(',');
+      allTags = db.prepare(`
+        SELECT bt.book_id, t.name
+        FROM book_tags bt
+        INNER JOIN tags t ON bt.tag_id = t.id
+        WHERE bt.book_id IN (${placeholders})
+      `).all(...bookIds);
+    }
+
+    // Group tags by book_id
+    const tagsByBook = {};
+    allTags.forEach(({ book_id, name }) => {
+      if (!tagsByBook[book_id]) {
+        tagsByBook[book_id] = [];
+      }
+      tagsByBook[book_id].push(name);
+    });
+
     // Add thumbnail URLs and tags to each book
     books.forEach(book => {
       if (book.thumbnail_path) {
         book.thumbnail_url = `http://localhost:3001${book.thumbnail_path}`;
       }
-
-      // Get tags for this book
-      const bookTags = db.prepare(`
-        SELECT t.name FROM tags t
-        INNER JOIN book_tags bt ON t.id = bt.tag_id
-        WHERE bt.book_id = ?
-      `).all(book.id);
-
-      book.tags = bookTags.map(t => t.name);
+      book.tags = tagsByBook[book.id] || [];
     });
 
     // Get total count for pagination
