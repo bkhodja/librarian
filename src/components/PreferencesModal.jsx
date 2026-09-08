@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import ModalPortal from './ModalPortal';
 
-const PreferencesModal = ({ isOpen, onClose }) => {
+const PreferencesModal = ({ isOpen, onClose, onSaved }) => {
   const [preferences, setPreferences] = useState({
     hide_adult_content: false,
     default_view_mode: 'grid',
@@ -46,12 +46,15 @@ const PreferencesModal = ({ isOpen, onClose }) => {
       const data = await response.json();
 
       if (data.success) {
-        setMessage({ type: 'success', text: 'Preferences saved successfully!' });
-        setTimeout(() => {
-          onClose();
-          // Reload the page to apply new preferences
-          window.location.reload();
-        }, 1000);
+        setMessage({ type: 'success', text: 'Preferences saved' });
+
+        // Hand the saved values back rather than reloading. The page reload
+        // was here because nothing told the app a preference had changed, and
+        // it threw away scroll position and any active filter to apply a
+        // checkbox.
+        if (onSaved) onSaved(preferences);
+
+        setTimeout(onClose, 700);
       } else {
         setMessage({ type: 'error', text: data.error || 'Failed to save preferences' });
       }

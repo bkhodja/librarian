@@ -886,7 +886,15 @@ function App() {
               </button>
 
               <span className="hidden shrink-0 text-xs tabular-nums text-ink-faint sm:inline">
-                {loading ? 'Loading...' : (searchQuery || selectedTag || selectedAuthor || selectedFileType) ? `${filteredAndSortedBooks.length} of ${books.length}` : `${totalBooks || books.length} books`}
+                {loading
+                  ? 'Loading…'
+                  /* Say how many are showing whenever that differs from the
+                     library's size. Reporting only the total made a working
+                     filter look like it had done nothing — hiding 39 adult
+                     books still read as "834 books". */
+                  : filteredAndSortedBooks.length !== (totalBooks || books.length)
+                    ? `${filteredAndSortedBooks.length} of ${totalBooks || books.length}`
+                    : `${totalBooks || books.length} books`}
               </span>
               <div className="flex items-center gap-1">
                 <input
@@ -1149,6 +1157,7 @@ function App() {
       <PreferencesModal
         isOpen={isPreferencesOpen}
         onClose={() => setIsPreferencesOpen(false)}
+        onSaved={(saved) => setUserPreferences(saved)}
       />
       </div>
     </div>
