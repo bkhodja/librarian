@@ -192,12 +192,43 @@ function titleFromFilename(filePath) {
  * Pick the best title available, preferring a real one and falling back to the
  * filename rather than storing "Untitled".
  */
+const normalizeForCompare = (value) =>
+  (value || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+
+/**
+ * Is `candidate` just a tail-end scrap of the fuller `whole`? Extraction often
+ * grabs the last few words of a title — "PHP глазами хакера. 5-е изд" comes
+ * back as "е изд", "CS для программиста-самоучки" as "самоучки" — and those
+ * scraps pass the plausibility check on their own.
+ */
+function isFragmentOf(candidate, whole) {
+  const a = normalizeForCompare(candidate);
+  const b = normalizeForCompare(whole);
+
+  if (!a || !b || a === b) return false;
+  if (a.length >= b.length * 0.6) return false;
+
+  return b.endsWith(a) || b.includes(` ${a}`);
+}
+
 function bestTitle({ extracted, existing, filePath }) {
+  const fromFile = titleFromFilename(filePath);
+
+  // The filename is usually the fullest form available, so an extracted title
+  // that is merely a scrap of it loses to it.
+  if (isPlausibleTitle(fromFile)) {
+    if (isPlausibleTitle(extracted) && !isFragmentOf(extracted, fromFile)) {
+      return cleanTitle(extracted);
+    }
+    if (!isPlausibleTitle(extracted) && isPlausibleTitle(existing) &&
+        !isFragmentOf(existing, fromFile)) {
+      return cleanTitle(existing);
+    }
+    return fromFile;
+  }
+
   if (isPlausibleTitle(extracted)) return cleanTitle(extracted);
   if (isPlausibleTitle(existing)) return cleanTitle(existing);
-
-  const fromFile = titleFromFilename(filePath);
-  if (isPlausibleTitle(fromFile)) return fromFile;
 
   return cleanTitle(existing) || cleanTitle(extracted) || fromFile || null;
 }
