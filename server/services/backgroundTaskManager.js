@@ -235,6 +235,28 @@ class BackgroundTaskManager extends EventEmitter {
     }, 3600000);
   }
 
+  async fileExists(filePath) {
+    try {
+      await fs.access(filePath);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  // A book whose file is gone would otherwise be re-queued on every sweep,
+  // since the queries that feed the queue look for NULL metadata/thumbnail.
+  // Flag it for review so it drops out of those queries.
+  markMissing(bookId) {
+    try {
+      db.prepare(
+        "UPDATE books SET needs_review = 1, language = COALESCE(language, 'unknown') WHERE id = ?"
+      ).run(bookId);
+    } catch (error) {
+      console.error(`Failed to flag missing book ${bookId}:`, error.message);
+    }
+  }
+
   async processQueuedBooks() {
     if (this.isProcessing || this.processingQueue.size === 0) return;
 
@@ -245,6 +267,12 @@ class BackgroundTaskManager extends EventEmitter {
     try {
       const book = db.prepare('SELECT * FROM books WHERE id = ?').get(bookId);
       if (book) {
+        if (!(await this.fileExists(book.file_path))) {
+          console.warn(`Skipping missing file: ${book.file_path}`);
+          this.markMissing(bookId);
+          return;
+        }
+
         console.log(`⚙️  Processing: ${path.basename(book.file_path)}`);
 
         // Determine file type and process accordingly
@@ -305,6 +333,7 @@ class BackgroundTaskManager extends EventEmitter {
     const unprocessedBooks = db.prepare(`
       SELECT id FROM books
       WHERE (language IS NULL OR language = 'Not scanned')
+        AND needs_review = 0
       LIMIT 10
     `).all();
 
@@ -321,6 +350,7 @@ class BackgroundTaskManager extends EventEmitter {
     const booksWithoutThumbnails = db.prepare(`
       SELECT id, file_path FROM books
       WHERE thumbnail_path IS NULL
+        AND needs_review = 0
       LIMIT 5
     `).all();
 
@@ -335,6 +365,12 @@ class BackgroundTaskManager extends EventEmitter {
 
   async generateThumbnailForBook(book) {
     try {
+      if (!(await this.fileExists(book.file_path))) {
+        console.warn(`Skipping thumbnail for missing file: ${book.file_path}`);
+        this.markMissing(book.id);
+        return;
+      }
+
       const ext = path.extname(book.file_path).toLowerCase();
       let result;
 

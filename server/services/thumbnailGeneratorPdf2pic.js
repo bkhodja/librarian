@@ -22,6 +22,16 @@ class ThumbnailGeneratorPdf2pic {
    */
   async generateThumbnail(pdfPath, bookId) {
     try {
+      // pdf2pic opens a ReadStream internally and its 'error' event has no
+      // listener, so a missing file crashes the process instead of rejecting.
+      // Check first rather than letting it get that far.
+      try {
+        await fs.access(pdfPath);
+      } catch {
+        console.error(`Skipping thumbnail for book ${bookId}: file not found at ${pdfPath}`);
+        return { success: false, missing: true, error: 'File not found' };
+      }
+
       console.log(`Generating PDF thumbnail for book ${bookId}...`);
 
       // Configure pdf2pic
