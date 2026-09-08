@@ -176,7 +176,12 @@ const ALIASES = new Map([
 function canonicalize(raw) {
   if (!raw || typeof raw !== 'string') return null;
 
-  const key = raw
+  // The vocabulary is shown to the model as "tag — what it means", and the
+  // model sometimes echoes the whole line back rather than just the name.
+  // Keep the part before the separator instead of rejecting the tag.
+  const name = String(raw).split(/\s+[—–-]\s+|:\s+/)[0];
+
+  const key = name
     .toLowerCase()
     .trim()
     .replace(/[\s_]+/g, '-')

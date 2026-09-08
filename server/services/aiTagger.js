@@ -32,7 +32,9 @@ Rules:
 - Tag what the book is substantially about, not what it mentions in passing.
 - Precision matters more than coverage. Most books need 1 or 2 tags.
 - Do not pad the list to reach the maximum. If only one tag fits, return one.
-- If you are unsure about a tag, leave it out.`;
+- If you are unsure about a tag, leave it out.
+- Return the tag name only. The list shows "name — meaning"; the meaning is
+  there to help you choose and must never appear in your answer.`;
 
 class AiTagger {
   /** Assemble the evidence available for one book. */
