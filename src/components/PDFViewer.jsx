@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
+import ModalPortal from './ModalPortal';
 
 // Configure worker from local file
 pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
@@ -230,7 +231,8 @@ function PDFViewer({ book, filePath, isOpen, onClose, isDark, searchTerm = null,
   const progressPercentage = numPages ? (pageNumber / numPages) * 100 : 0;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/95 flex flex-col">
+    <ModalPortal>
+      <div className="fixed inset-0 z-50 bg-black/95 flex flex-col">
       {/* Header */}
       <div className="bg-[#16181d] text-white px-4 py-3 flex items-center justify-between border-b border-white/10">
         <div className="flex items-center gap-4">
@@ -401,7 +403,8 @@ function PDFViewer({ book, filePath, isOpen, onClose, isDark, searchTerm = null,
           Use ← → or Space to navigate • +/- to zoom • Esc to close
         </div>
       </div>
-    </div>
+      </div>
+    </ModalPortal>
   );
 }
 

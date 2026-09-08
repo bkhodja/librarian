@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { ReactReader } from 'react-reader';
 import { FaTimes } from 'react-icons/fa';
 import debounce from 'lodash/debounce';
+import ModalPortal from './ModalPortal';
 
 const EpubViewer = ({ bookId, filePath, onClose }) => {
   const [location, setLocation] = useState(null);
@@ -136,7 +137,8 @@ const EpubViewer = ({ bookId, filePath, onClose }) => {
   }, [location]);
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-90 z-50 flex flex-col">
+    <ModalPortal>
+      <div className="fixed inset-0 bg-black bg-opacity-90 z-50 flex flex-col">
       {/* Header */}
       <div className="bg-[#16181d] text-white px-4 py-3 flex justify-between items-center border-b border-white/10">
         <div className="flex items-center space-x-4">
@@ -183,7 +185,8 @@ const EpubViewer = ({ bookId, filePath, onClose }) => {
           Use arrow keys to navigate • Press Esc to exit
         </span>
       </div>
-    </div>
+      </div>
+    </ModalPortal>
   );
 };
 
