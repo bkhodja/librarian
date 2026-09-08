@@ -217,15 +217,23 @@ Reply as JSON: {"tags": ["tag1"]}`;
      * seven books in a hundred and sixty, and an unparseable reply is a book
      * that never gets judged.
      */
-    const [first, second] = await Promise.all([
-      ollama.generateJSON(prompt, ADULT_SCHEMA, { model: ADULT_MODEL, maxTokens: 300 }),
-      ollama.generateJSON(prompt, ADULT_SCHEMA, { model: ADULT_VERIFY_MODEL, maxTokens: 300 })
-    ]);
+    const first = await ollama.generateJSON(
+      prompt, ADULT_SCHEMA, { model: ADULT_MODEL, maxTokens: 300 }
+    );
 
-    if (!first && !second) return null;                 // no usable answer
+    if (!first) return null;                            // no usable answer
+    if (!first.adult) return { adult: false, why: '' }; // agreement can't rescue a no
 
-    const agreed = Boolean(first?.adult) && Boolean(second?.adult);
-    return { adult: agreed, why: first?.why || second?.why || '' };
+    // Only now is the larger model worth waking. Asking it about every book
+    // meant holding twenty gigabytes resident to answer "no" eight hundred
+    // times, and the machine ran out of memory partway through a sweep.
+    const second = await ollama.generateJSON(
+      prompt, ADULT_SCHEMA, { model: ADULT_VERIFY_MODEL, maxTokens: 300 }
+    );
+
+    if (!second) return null;                           // unconfirmed; ask again later
+
+    return { adult: Boolean(second.adult), why: first.why || second.why || '' };
   }
 
   /**
