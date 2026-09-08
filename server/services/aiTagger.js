@@ -25,6 +25,10 @@ const SCHEMA = {
   required: ['tags']
 };
 
+// Hiding a book is a visible mistake, so a flag needs two models to agree.
+const ADULT_MODEL = process.env.OLLAMA_MODEL || 'gemma3:4b';
+const ADULT_VERIFY_MODEL = process.env.OLLAMA_VERIFY_MODEL || 'qwen3.6:35b-a3b';
+
 const ADULT_SCHEMA = {
   type: 'object',
   properties: {
@@ -53,6 +57,10 @@ class AiTagger {
     // reaches a run of books it cannot tag. Cleared on restart, which retries
     // them — worth doing after a vocabulary or prompt change.
     this.attempted = new Set();
+
+    // Same problem on the adult sweep: a book with nothing readable is left
+    // unassessed on purpose, so it would be picked up again every pass.
+    this.unassessable = new Set();
   }
 
   /** Assemble the evidence available for one book. */
@@ -128,23 +136,96 @@ Reply as JSON: {"tags": ["tag1"]}`;
    * matter, because a book that discusses sex clinically or academically is
    * not what anyone means by hiding adult content.
    */
-  async assessAdult(book) {
-    const description = book.description ? `\nDescription: ${book.description.slice(0, 400)}` : '';
+  /*
+   * A title on its own is not evidence. Asked to judge title-only books the
+   * model invented a reason for every one it flagged: a Power BI book called
+   * "extremedax" was "extreme content", a finance book "moneyiseverything" was
+   * "often associated with sexual themes", and "Укус питона" — Python's Bite,
+   * a programming book — became "a dangerous, predatory encounter". Ten books,
+   * ten false positives, none of them with anything to read.
+   *
+   * Half the library has no description, and the erotica actually in it has
+   * none at all, so a description is not enough to gate on either. What every
+   * book does have is its own indexed pages, and those say plainly what the
+   * book is. Page one is usually a cover, so this starts a little way in and
+   * takes pages with real text on them.
+   */
+  evidenceFor(book) {
+    if (book.description && book.description.trim().length >= 80) {
+      return { text: book.description.trim().slice(0, 900), source: 'description' };
+    }
 
-    const result = await ollama.generateJSON(
+    /*
+     * Sampled across the book rather than from the front. The front of the
+     * erotica in this library is a contents page and a wall of review quotes,
+     * which reads like any other book's front matter; a quarter and a half of
+     * the way in is the book itself.
+     */
+    const pages = db.prepare(
+      `SELECT content, page_number FROM book_pages
+        WHERE book_id = ? AND word_count > 60
+        ORDER BY page_number`
+    ).all(book.id);
+
+    if (!pages.length) return null;
+
+    const picks = [...new Set([0.25, 0.5, 0.75].map(
+      (at) => Math.min(pages.length - 1, Math.floor(pages.length * at))
+    ))].map((i) => pages[i]);
+
+    const text = picks
+      .map((p) => p.content.replace(/\s+/g, ' ').trim())
+      .join('\n\n');
+
+    return text.length >= 200
+      ? { text: text.slice(0, 2400), source: 'pages' }
+      : null;
+  }
+
+  async assessAdult(book) {
+    const evidence = this.evidenceFor(book);
+    if (!evidence) return { adult: false, why: '', insufficientEvidence: true };
+
+    const label = evidence.source === 'description' ? 'Description' : 'Opening pages';
+
+    const prompt =
       `Book:\nTitle: ${book.title || 'Unknown'}` +
       `${book.author ? `\nAuthor: ${book.author}` : ''}` +
-      `${book.publisher ? `\nPublisher: ${book.publisher}` : ''}${description}\n\n` +
+      `${book.publisher ? `\nPublisher: ${book.publisher}` : ''}\n` +
+      `${label}:\n"""\n${evidence.text}\n"""\n\n` +
       `Is this book sexually explicit adult material — erotica, or an explicit ` +
       `sex manual — such that someone would want it hidden from a shared screen?\n\n` +
-      `Say false for books that merely discuss sex, relationships, anatomy, ` +
-      `health or gender academically or clinically. Say false for anything ` +
-      `non-sexual.\n\nReply as JSON: {"adult": true, "why": "a few words"}`,
-      ADULT_SCHEMA,
-      { maxTokens: 80 }
-    );
+      `Judge only from the text above. Infer nothing from the title: words like ` +
+      `"extreme", "bite", "pleasure" or "desire" mean nothing on their own.\n` +
+      `Answer true if the text is sexually explicit, or gives explicit ` +
+      `practical instruction in sex — a how-to for sex, sex toys or fetish ` +
+      `practice is adult material even when its tone is friendly and matter ` +
+      `of fact.\n` +
+      `Answer false for anything non-sexual, and for books that discuss sex, ` +
+      `relationships, anatomy, health or gender academically, clinically or ` +
+      `sociologically without explicit content.\n\n` +
+      `Reply as JSON: {"adult": true, "why": "under ten words"}`;
 
-    return result ? { adult: Boolean(result.adult), why: result.why || '' } : null;
+    /*
+     * Both models have to say yes. Alone, the small one occasionally returns
+     * a true whose own stated reason contradicts it — a Git book flagged over
+     * the word "merge", a corporate responsibility book flagged with the
+     * reason "focuses on corporate responsibility, not sexual content". The
+     * larger model does not make those, and asking both costs a second.
+     *
+     * Generous token budget on both: at 120 the reply ran out mid-sentence on
+     * seven books in a hundred and sixty, and an unparseable reply is a book
+     * that never gets judged.
+     */
+    const [first, second] = await Promise.all([
+      ollama.generateJSON(prompt, ADULT_SCHEMA, { model: ADULT_MODEL, maxTokens: 300 }),
+      ollama.generateJSON(prompt, ADULT_SCHEMA, { model: ADULT_VERIFY_MODEL, maxTokens: 300 })
+    ]);
+
+    if (!first && !second) return null;                 // no usable answer
+
+    const agreed = Boolean(first?.adult) && Boolean(second?.adult);
+    return { adult: agreed, why: first?.why || second?.why || '' };
   }
 
   /**
@@ -162,27 +243,51 @@ Reply as JSON: {"tags": ["tag1"]}`;
     }
   }
 
-  /** Books never assessed for adult content. */
+  static ASSESSABLE = 'adult_checked = 0 AND needs_review = 0';
+
+  /*
+   * Books never assessed. Whether there is enough text to judge one is
+   * decided per book by evidenceFor(); a book with nothing readable is left
+   * unassessed rather than marked checked, so it becomes eligible by itself
+   * once indexing or enrichment gives it something to read.
+   */
   unassessedBooks(limit) {
-    return db.prepare(
-      'SELECT * FROM books WHERE adult_checked = 0 AND needs_review = 0 ORDER BY id LIMIT ?'
-    ).all(limit);
+    const rows = db.prepare(
+      `SELECT * FROM books WHERE ${AiTagger.ASSESSABLE} ORDER BY id LIMIT ?`
+    ).all(limit * 4);
+
+    return rows.filter((b) => !this.unassessable.has(b.id)).slice(0, limit);
   }
 
   countUnassessed() {
-    return db.prepare(
-      'SELECT COUNT(*) AS count FROM books WHERE adult_checked = 0 AND needs_review = 0'
+    const total = db.prepare(
+      `SELECT COUNT(*) AS count FROM books WHERE ${AiTagger.ASSESSABLE}`
     ).get().count;
+
+    return Math.max(0, total - this.unassessable.size);
   }
 
   /** Assess a batch, returning what it flagged so a caller can report it. */
   async assessUnassessed(limit = 25, onFlag) {
     const books = this.unassessedBooks(limit);
     const result = { assessed: 0, flagged: 0 };
+    let failures = 0;
 
     for (const book of books) {
       const verdict = await this.assessAdult(book);
-      if (!verdict) break;                     // model unavailable; stop the pass
+
+      // A truncated or unparseable reply is one bad answer, not a dead model,
+      // and stopping on the first one ended an entire pass mid-library.
+      if (!verdict) {
+        if (++failures >= 3) break;
+        continue;
+      }
+      failures = 0;
+
+      if (verdict.insufficientEvidence) {      // nothing to read yet
+        this.unassessable.add(book.id);
+        continue;
+      }
 
       this.recordAdult(book.id, verdict.adult);
       result.assessed++;
