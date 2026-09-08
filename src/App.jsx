@@ -120,7 +120,17 @@ function App() {
   const handleReadPDF = handleReadBook;
 
   // Extract unique values for filters
-  const allTags = [...new Set(books.flatMap(book => book.tags || []))];
+  const tagCounts = React.useMemo(() => {
+    const counts = new Map();
+    for (const book of books) {
+      for (const tag of book.tags || []) {
+        counts.set(tag, (counts.get(tag) || 0) + 1);
+      }
+    }
+    return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  }, [books]);
+
+  const allTags = React.useMemo(() => tagCounts.map(([tag]) => tag), [tagCounts]);
   const allAuthors = [...new Set(books.map(book => book.author).filter(Boolean))].sort();
   const allFileTypes = [...new Set(books.map(book => {
     const ext = book.file_path?.split('.').pop()?.toLowerCase();
@@ -629,9 +639,9 @@ function App() {
                 value={selectedTag}
                 onChange={(e) => setSelectedTag(e.target.value)}
               >
-                <option value="">All Tags</option>
-                {allTags.map(tag => (
-                  <option key={tag} value={tag}>{tag}</option>
+                <option value="">All tags</option>
+                {tagCounts.map(([tag, count]) => (
+                  <option key={tag} value={tag}>{tag} ({count})</option>
                 ))}
               </select>
             </div>

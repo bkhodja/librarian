@@ -162,16 +162,20 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
     }
   };
 
+  // Suggestions come from the local model via Ollama, which picks from a fixed
+  // vocabulary. It falls back to keyword matching by itself when Ollama is off.
   const fetchTagSuggestions = async () => {
     if (!book?.id) return;
 
     setLoadingSuggestions(true);
     try {
-      const response = await fetch(`http://localhost:3001/api/auto-tags/suggestions/${book.id}`);
+      const response = await fetch(`http://localhost:3001/api/ai-tags/suggest/${book.id}`);
       const data = await response.json();
 
-      if (data.success && data.suggestions) {
-        setTagSuggestions(data.suggestions);
+      if (Array.isArray(data.tags)) {
+        // Do not offer what the book already carries.
+        const existing = new Set((tags || []).map((t) => t.name || t));
+        setTagSuggestions(data.tags.filter((t) => !existing.has(t)));
       }
     } catch (error) {
       console.error('Failed to fetch tag suggestions:', error);
