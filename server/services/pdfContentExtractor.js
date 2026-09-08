@@ -1,5 +1,6 @@
 const pdf = require('pdf-parse');
 const fs = require('fs').promises;
+const quality = require('./metadataQuality');
 
 /**
  * Enhanced PDF content extractor that analyzes text content
@@ -82,12 +83,18 @@ class PDFContentExtractor {
       const lastPages = data.text.substring(Math.max(0, data.text.length - 2000));
       const searchText = firstPages + '\n' + lastPages;
 
+      // The filename is usually the best title available at this point, and
+      // knowing it lets the author check reject series and product names that
+      // merely repeat the title.
+      const authorContext = { title: quality.titleFromFilename(filePath) };
+
       // Extract all metadata
       const metadata = {
         isbn: this.extractISBN(searchText) || this.extractISBN(data.text),
         publisher: this.extractPublisher(searchText) || this.extractPublisher(data.text),
         publicationYear: this.extractYear(searchText) || this.extractYear(data.text),
-        authors: this.extractAuthors(firstPages) || this.extractAuthors(data.text.substring(0, 10000)),
+        authors: this.extractAuthors(firstPages, authorContext) ||
+                 this.extractAuthors(data.text.substring(0, 10000), authorContext),
         edition: this.extractEdition(searchText),
         description: this.extractDescription(firstPages),
         // Also keep the full text for language detection
@@ -197,36 +204,33 @@ class PDFContentExtractor {
   /**
    * Extract authors from text
    */
-  extractAuthors(text) {
-    const authors = new Set();
+  extractAuthors(text, context = {}) {
+    const authors = [];
 
     // Look for author patterns
     for (const pattern of this.authorPatterns) {
       const matches = [...text.matchAll(pattern)];
       for (const match of matches) {
-        const author = match[1];
-        if (author && author.length > 5 && author.length < 100) {
-          // Clean up and validate
-          const cleaned = author
-            .trim()
-            .replace(/[,.]$/, '')
-            .replace(/^\W+|\W+$/g, '');
+        const candidate = match[1];
+        if (!candidate) continue;
 
-          // Check if it looks like a name (has at least 2 parts)
-          const parts = cleaned.split(/\s+/);
-          if (parts.length >= 2 && parts.length <= 5) {
-            // Filter out common non-name words
-            const nonNames = ['the', 'and', 'with', 'for', 'by', 'from', 'edition', 'press', 'copyright'];
-            if (!nonNames.some(word => cleaned.toLowerCase().includes(word))) {
-              authors.add(cleaned);
-            }
-          }
+        const cleaned = candidate
+          .trim()
+          .replace(/[,.]$/, '')
+          .replace(/^\W+|\W+$/g, '');
+
+        // The patterns match any line of capitalised words, which on a
+        // copyright page means publisher names, colophon cities and legal
+        // boilerplate as often as people. Let the quality check decide.
+        const validated = quality.cleanAuthor(cleaned, context);
+        if (validated && !authors.includes(validated)) {
+          authors.push(validated);
         }
       }
     }
 
     // Return as comma-separated string
-    return authors.size > 0 ? Array.from(authors).slice(0, 3).join(', ') : null;
+    return authors.length > 0 ? authors.slice(0, 3).join(', ') : null;
   }
 
   /**

@@ -12,6 +12,7 @@ const { parentPort } = require('worker_threads');
 
 const pdfProcessor = require('./pdfProcessor');
 const epubProcessor = require('./epubProcessorImproved');
+const quality = require('./metadataQuality');
 
 /**
  * The two processors report their results differently: processPDF returns a
@@ -22,10 +23,19 @@ const epubProcessor = require('./epubProcessorImproved');
 function normalizePdf(result) {
   const metadata = result.metadata || {};
 
+  // Prefer a title that reads like one. An embedded "Untitled" or a filename
+  // slug loses to whatever else is available, and a rejected author is left
+  // null so an ISBN lookup can supply the real one.
+  const title = quality.bestTitle({
+    extracted: metadata.title,
+    existing: metadata.titleFromFilename,
+    filePath: result.filePath
+  });
+
   return {
     success: !result.error && Boolean(result.metadata),
-    title: metadata.title || null,
-    author: metadata.author || metadata.authorFromFilename || null,
+    title,
+    author: quality.cleanAuthor(metadata.author || metadata.authorFromFilename, { title }),
     language: result.language || null,
     pageCount: metadata.pageCount || null,
     pdfType: result.pdfType || null,
@@ -43,10 +53,15 @@ function normalizePdf(result) {
 function normalizeEpub(result) {
   const metadata = result.metadata || {};
 
+  const title = quality.bestTitle({
+    extracted: metadata.title,
+    filePath: result.filePath
+  });
+
   return {
     success: Boolean(result.success),
-    title: metadata.title || null,
-    author: metadata.author || null,
+    title,
+    author: quality.cleanAuthor(metadata.author, { title }),
     language: metadata.language || null,
     pageCount: metadata.chapters || null,
     pdfType: null,
@@ -69,7 +84,8 @@ async function process(filePath) {
   }
 
   if (ext === '.epub') {
-    return normalizeEpub(await epubProcessor.processEpub(filePath));
+    const result = await epubProcessor.processEpub(filePath);
+    return normalizeEpub({ ...result, filePath });
   }
 
   return { success: false, error: `Unsupported file type: ${ext}` };
