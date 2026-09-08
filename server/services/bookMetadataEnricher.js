@@ -141,13 +141,28 @@ class BookMetadataEnricher {
         ? remoteAuthor
         : null;
 
+    // Same rule for the fields that also come off the copyright page: take the
+    // remote value when what we hold is missing or fails the quality check.
+    // Testing for empty was not enough, because boilerplate is not empty.
+    const remotePublisher = quality.cleanPublisher(metadata.publisher);
+    const usePublisher =
+      remotePublisher && !quality.isPlausiblePublisher(book?.publisher)
+        ? remotePublisher
+        : null;
+
+    const remoteDescription = quality.cleanDescription(metadata.description);
+    const useDescription =
+      remoteDescription && !quality.isPlausibleDescription(book?.description)
+        ? remoteDescription
+        : null;
+
     const stmt = db.prepare(`
       UPDATE books
       SET
         title = COALESCE(?, title),
         author = COALESCE(?, author),
-        description = CASE WHEN ? IS NOT NULL AND (description IS NULL OR description = '') THEN ? ELSE description END,
-        publisher = CASE WHEN ? IS NOT NULL AND (publisher IS NULL OR publisher = '') THEN ? ELSE publisher END,
+        description = COALESCE(?, description),
+        publisher = COALESCE(?, publisher),
         publication_year = CASE WHEN ? IS NOT NULL AND publication_year IS NULL THEN ? ELSE publication_year END,
         page_count = CASE WHEN ? IS NOT NULL AND (page_count IS NULL OR page_count = 0) THEN ? ELSE page_count END,
         language = CASE WHEN ? IS NOT NULL AND (language IS NULL OR language = '') THEN ? ELSE language END,
@@ -162,8 +177,8 @@ class BookMetadataEnricher {
     const result = stmt.run(
       useTitle,
       useAuthor,
-      metadata.description, metadata.description,
-      metadata.publisher, metadata.publisher,
+      useDescription,
+      usePublisher,
       metadata.publicationYear, metadata.publicationYear,
       metadata.pageCount, metadata.pageCount,
       metadata.language, metadata.language,

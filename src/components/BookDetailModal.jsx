@@ -397,7 +397,7 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
                     placeholder="978-0-123456-78-9"
                   />
                 ) : (
-                  <p className="text-ink font-mono">{book.isbn || 'Not available'}</p>
+                  <p className={book.isbn ? 'text-ink font-mono' : 'text-ink-faint italic'}>{book.isbn || 'Not recorded'}</p>
                 )}
               </div>
 
@@ -412,7 +412,7 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
                     placeholder="Publisher name"
                   />
                 ) : (
-                  <p className="text-ink">{book.publisher || 'Unknown'}</p>
+                  <p className={book.publisher ? 'text-ink' : 'text-ink-faint italic'}>{book.publisher || 'Not recorded'}</p>
                 )}
               </div>
             </div>
@@ -430,7 +430,7 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
                     placeholder="e.g. 2nd Edition"
                   />
                 ) : (
-                  <p className="text-ink">{book.edition || 'Not specified'}</p>
+                  <p className={book.edition ? 'text-ink' : 'text-ink-faint italic'}>{book.edition || 'Not recorded'}</p>
                 )}
               </div>
 
@@ -447,7 +447,7 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
                     max={new Date().getFullYear()}
                   />
                 ) : (
-                  <p className="text-ink">{book.publication_year || 'Unknown'}</p>
+                  <p className={book.publication_year ? 'text-ink' : 'text-ink-faint italic'}>{book.publication_year || 'Not recorded'}</p>
                 )}
               </div>
             </div>

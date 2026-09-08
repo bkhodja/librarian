@@ -24,39 +24,56 @@ const limitArg = args.find((a) => a.startsWith('--limit='));
 const remoteLimit = limitArg ? Number(limitArg.split('=')[1]) : Infinity;
 
 function localPass(label = 'Local pass') {
-  const books = db.prepare('SELECT id, title, author, file_path FROM books').all();
-  const update = db.prepare('UPDATE books SET title = ?, author = ? WHERE id = ?');
+  const books = db.prepare(
+    'SELECT id, title, author, publisher, edition, description, file_path FROM books'
+  ).all();
+  const update = db.prepare(`
+    UPDATE books
+    SET title = ?, author = ?, publisher = ?, edition = ?, description = ?
+    WHERE id = ?
+  `);
 
-  let titlesFixed = 0;
-  let authorsCleared = 0;
-  let authorsTrimmed = 0;
+  const counts = { title: 0, author: 0, publisher: 0, edition: 0, description: 0 };
+  let cleared = 0;
 
   for (const book of books) {
     const title = quality.bestTitle({ existing: book.title, filePath: book.file_path });
-    const author = quality.cleanAuthor(book.author, { title });
+    const next = {
+      title,
+      author: quality.cleanAuthor(book.author, { title }),
+      publisher: quality.cleanPublisher(book.publisher),
+      edition: quality.cleanEdition(book.edition),
+      description: quality.cleanDescription(book.description)
+    };
 
-    const titleChanged = (title || null) !== (book.title || null);
-    const authorChanged = (author || null) !== (book.author || null);
-    if (!titleChanged && !authorChanged) continue;
+    let changed = false;
+    for (const field of Object.keys(counts)) {
+      if ((next[field] || null) === (book[field] || null)) continue;
+      counts[field]++;
+      if (book[field] && !next[field]) cleared++;
+      changed = true;
+    }
+    if (!changed) continue;
 
-    if (titleChanged) titlesFixed++;
-    if (authorChanged) (author ? authorsTrimmed++ : authorsCleared++);
-
-    if (!dryRun) update.run(title, author, book.id);
+    if (!dryRun) {
+      update.run(next.title, next.author, next.publisher, next.edition, next.description, book.id);
+    }
   }
 
-  console.log(`\n${label}: ${titlesFixed} titles rewritten, ` +
-              `${authorsTrimmed} authors trimmed, ${authorsCleared} authors cleared`);
+  console.log(`\n${label}: ` + Object.entries(counts)
+    .map(([field, n]) => `${n} ${field}`).join(', ') +
+    ` changed (${cleared} field(s) cleared as unusable)`);
 }
 
 async function remotePass() {
   const books = db.prepare(
-    'SELECT id, title, author, isbn FROM books WHERE isbn IS NOT NULL'
+    'SELECT id, title, author, publisher, isbn FROM books WHERE isbn IS NOT NULL'
   ).all();
 
   const needsWork = books.filter((b) =>
     !quality.isPlausibleTitle(b.title) ||
-    !quality.isPlausibleAuthor(b.author, { title: b.title })
+    !quality.isPlausibleAuthor(b.author, { title: b.title }) ||
+    !quality.isPlausiblePublisher(b.publisher)
   ).slice(0, remoteLimit);
 
   console.log(`\nRemote pass: ${needsWork.length} book(s) to look up by ISBN`);
@@ -97,10 +114,15 @@ async function remotePass() {
     localPass('Second local pass');
   }
 
-  const remaining = db.prepare('SELECT id, title, author FROM books').all()
-    .filter((b) => !quality.isPlausibleTitle(b.title) ||
-                   !quality.isPlausibleAuthor(b.author, { title: b.title })).length;
-  console.log(`\n${remaining} book(s) still without a usable title or author`);
+  const rows = db.prepare('SELECT title, author, publisher, edition, description FROM books').all();
+  const usable = (field, fn) => rows.filter((r) => fn(r[field], r)).length;
+
+  console.log('\nUsable after repair:');
+  console.log(`  title       ${usable('title', (v) => quality.isPlausibleTitle(v))}/${rows.length}`);
+  console.log(`  author      ${usable('author', (v, r) => quality.isPlausibleAuthor(v, { title: r.title }))}/${rows.length}`);
+  console.log(`  publisher   ${usable('publisher', (v) => quality.isPlausiblePublisher(v))}/${rows.length}`);
+  console.log(`  edition     ${usable('edition', (v) => quality.isPlausibleEdition(v))}/${rows.length}`);
+  console.log(`  description ${usable('description', (v) => quality.isPlausibleDescription(v))}/${rows.length}`);
 
   db.close();
 })();
