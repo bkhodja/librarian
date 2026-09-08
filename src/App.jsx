@@ -25,6 +25,10 @@ const LIBRARY_FETCH_LIMIT = 100000;
 
 const SEEN_KEY = 'librarian:booksSeenAt';
 
+// Filter value for "has no tags at all". Not a real tag — storing one would
+// make the book tagged, and it would show up as a subject everywhere else.
+const UNTAGGED = '__untagged__';
+
 // Books added within this window are worth pointing out on the card.
 const NEW_BOOK_DAYS = 3;
 
@@ -181,6 +185,11 @@ function App() {
     return [...counts.entries()].sort((a, b) => a[0].localeCompare(b[0]));
   }, [books]);
 
+  const untaggedCount = React.useMemo(
+    () => books.filter((b) => !b.tags || b.tags.length === 0).length,
+    [books]
+  );
+
   const allTags = React.useMemo(() => tagCounts.map(([tag]) => tag), [tagCounts]);
   const allAuthors = [...new Set(books.map(book => book.author).filter(Boolean))].sort();
   const allFileTypes = [...new Set(books.map(book => {
@@ -200,7 +209,11 @@ function App() {
         (book.author || '').toLowerCase().includes(query);
 
       // Tag filter
-      const matchesTags = !selectedTag || book.tags?.includes(selectedTag);
+      const matchesTags =
+        !selectedTag ||
+        (selectedTag === UNTAGGED
+          ? !book.tags || book.tags.length === 0
+          : book.tags?.includes(selectedTag));
 
       // Author filter
       const matchesAuthor = !selectedAuthor ||
@@ -804,7 +817,12 @@ function App() {
               onChange={(e) => setSelectedTag(e.target.value)}
               placeholder="All tags"
               title="Filter by subject tag"
-              options={tagCounts.map(([tag, count]) => ({ value: tag, label: `${tag} (${count})` }))}
+              options={[
+                ...(untaggedCount > 0
+                  ? [{ value: UNTAGGED, label: `— untagged (${untaggedCount})` }]
+                  : []),
+                ...tagCounts.map(([tag, count]) => ({ value: tag, label: `${tag} (${count})` }))
+              ]}
             />
           )}
 
