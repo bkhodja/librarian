@@ -418,6 +418,10 @@ router.post('/', (req, res) => {
 router.put('/:id', (req, res) => {
   try {
     const { title, author, language, publication_year, isbn, publisher, edition, description, tags, categories, thumbnail_path, is_adult } = req.body;
+    const bookId = Number(req.params.id);
+
+    const exists = db.prepare('SELECT 1 FROM books WHERE id = ?').get(bookId);
+    if (!exists) return res.status(404).json({ error: 'Book not found' });
 
     // Build UPDATE query dynamically to only update provided fields
     const updateFields = [];
@@ -434,39 +438,98 @@ router.put('/:id', (req, res) => {
     if (thumbnail_path !== undefined) { updateFields.push('thumbnail_path = ?'); values.push(thumbnail_path); }
     if (is_adult !== undefined) { updateFields.push('is_adult = ?'); values.push(is_adult); }
 
-    // Always update last_modified
-    updateFields.push('last_modified = CURRENT_TIMESTAMP');
+    /**
+     * Tags arrive as names, because that is how every other endpoint here
+     * reports them — the listing has always served `tags: ["python"]`, so a
+     * client that edits a book and sends it back naturally returns names. This
+     * route used to treat them as row ids and insert them straight into
+     * book_tags, which fails the foreign key. Numeric ids are still accepted,
+     * since older callers may send those.
+     */
+    const resolveTagIds = (input) => {
+      const findByName = db.prepare('SELECT id FROM tags WHERE name = ?');
+      const findById = db.prepare('SELECT id FROM tags WHERE id = ?');
+      const insertTag = db.prepare('INSERT INTO tags (name) VALUES (?)');
 
-    if (updateFields.length > 1) { // More than just last_modified
-      const query = `UPDATE books SET ${updateFields.join(', ')} WHERE id = ?`;
-      values.push(req.params.id);
-      db.prepare(query).run(...values);
-    }
+      const ids = [];
+      for (const entry of input) {
+        const value = typeof entry === 'object' && entry !== null ? (entry.id ?? entry.name) : entry;
+        if (value === null || value === undefined || value === '') continue;
 
-    // Update tags if provided
-    if (tags !== undefined && tags !== null) {
-      db.prepare('DELETE FROM book_tags WHERE book_id = ?').run(req.params.id);
-      if (Array.isArray(tags) && tags.length > 0) {
-        const insertTag = db.prepare('INSERT INTO book_tags (book_id, tag_id) VALUES (?, ?)');
-        tags.forEach(tagId => {
-          insertTag.run(req.params.id, tagId);
-        });
+        if (typeof value === 'number' || /^\d+$/.test(String(value))) {
+          const row = findById.get(Number(value));
+          if (row) ids.push(row.id);
+          continue;
+        }
+
+        const name = String(value).trim();
+        if (!name) continue;
+
+        const existing = findByName.get(name);
+        ids.push(existing ? existing.id : insertTag.run(name).lastInsertRowid);
       }
-    }
 
-    // Update categories if provided
-    if (categories !== undefined && categories !== null) {
-      db.prepare('DELETE FROM book_categories WHERE book_id = ?').run(req.params.id);
-      if (Array.isArray(categories) && categories.length > 0) {
-        const insertCategory = db.prepare('INSERT INTO book_categories (book_id, category_id) VALUES (?, ?)');
-        categories.forEach(categoryId => {
-          insertCategory.run(req.params.id, categoryId);
-        });
+      return [...new Set(ids)];
+    };
+
+    const resolveCategoryIds = (input) => {
+      const findById = db.prepare('SELECT id FROM categories WHERE id = ?');
+      const findByName = db.prepare('SELECT id FROM categories WHERE name = ?');
+
+      const ids = [];
+      for (const entry of input) {
+        const value = typeof entry === 'object' && entry !== null ? (entry.id ?? entry.name) : entry;
+        if (value === null || value === undefined || value === '') continue;
+
+        const row = (typeof value === 'number' || /^\d+$/.test(String(value)))
+          ? findById.get(Number(value))
+          : findByName.get(String(value).trim());
+
+        if (row) ids.push(row.id);
       }
-    }
 
-    // Return the updated book
-    const updatedBook = db.prepare('SELECT * FROM books WHERE id = ?').get(req.params.id);
+      return [...new Set(ids)];
+    };
+
+    /**
+     * One transaction. Previously the metadata update ran, then the tag
+     * replacement deleted the book's tags and threw on the insert — leaving
+     * the book half-updated with every tag gone, while the caller was told the
+     * save had failed.
+     */
+    const save = db.transaction(() => {
+      if (updateFields.length > 0) {
+        updateFields.push('last_modified = CURRENT_TIMESTAMP');
+        db.prepare(`UPDATE books SET ${updateFields.join(', ')} WHERE id = ?`)
+          .run(...values, bookId);
+      }
+
+      if (Array.isArray(tags)) {
+        const ids = resolveTagIds(tags);
+        db.prepare('DELETE FROM book_tags WHERE book_id = ?').run(bookId);
+        const link = db.prepare('INSERT OR IGNORE INTO book_tags (book_id, tag_id) VALUES (?, ?)');
+        for (const tagId of ids) link.run(bookId, tagId);
+      }
+
+      if (Array.isArray(categories)) {
+        const ids = resolveCategoryIds(categories);
+        db.prepare('DELETE FROM book_categories WHERE book_id = ?').run(bookId);
+        const link = db.prepare('INSERT OR IGNORE INTO book_categories (book_id, category_id) VALUES (?, ?)');
+        for (const categoryId of ids) link.run(bookId, categoryId);
+      }
+    });
+
+    save();
+
+    // Return the updated book with its tags, so the client does not have to
+    // re-fetch to see what it just saved.
+    const updatedBook = db.prepare('SELECT * FROM books WHERE id = ?').get(bookId);
+    updatedBook.tags = db.prepare(`
+      SELECT t.name FROM tags t
+      JOIN book_tags bt ON bt.tag_id = t.id
+      WHERE bt.book_id = ?
+    `).all(bookId).map((r) => r.name);
+
     res.json(updatedBook);
   } catch (error) {
     console.error('Error updating book:', error);

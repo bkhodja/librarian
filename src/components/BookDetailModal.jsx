@@ -240,33 +240,43 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
     }
   };
 
+  // Only what this form actually edits. Sending the whole book object back
+  // meant returning derived fields the API never asked for — tags, reading
+  // progress, thumbnail URLs — and a save was only as safe as the server's
+  // tolerance for them.
+  const EDITABLE_FIELDS = [
+    'title', 'author', 'language', 'publication_year',
+    'isbn', 'publisher', 'edition', 'description', 'is_adult'
+  ];
+
   const handleSave = async () => {
+    const fieldsToUpdate = {};
+    for (const field of EDITABLE_FIELDS) {
+      if (editedBook[field] !== undefined) fieldsToUpdate[field] = editedBook[field];
+    }
+
     try {
-      // Only send fields that were actually edited, don't include thumbnail_path
-      // unless it was explicitly changed
-      const fieldsToUpdate = { ...editedBook };
-
-      // Remove thumbnail_path if it's not being explicitly updated
-      // This prevents accidentally setting it to undefined/null
-      if (!('thumbnail_path' in editedBook)) {
-        delete fieldsToUpdate.thumbnail_path;
-      }
-
       const response = await fetch(`http://localhost:3001/api/books/${book.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(fieldsToUpdate),
       });
 
-      if (response.ok) {
-        const updatedBook = await response.json();
-        // Merge with current book to ensure we have all fields
-        const mergedBook = { ...book, ...updatedBook };
-        onUpdate(mergedBook);
-        setIsEditing(false);
+      if (!response.ok) {
+        // Previously this branch did nothing at all, so a failed save looked
+        // exactly like a successful one that had not taken effect.
+        const detail = await response.json().catch(() => ({}));
+        metadataStatus.error(detail.error || `Could not save (server said ${response.status})`);
+        return;
       }
+
+      const updatedBook = await response.json();
+      onUpdate({ ...book, ...updatedBook });
+      setIsEditing(false);
+      metadataStatus.success('Saved');
     } catch (error) {
       console.error('Failed to update book:', error);
+      metadataStatus.error('Could not reach the server to save');
     }
   };
 
