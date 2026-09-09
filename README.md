@@ -24,6 +24,9 @@ There is no account, no per-token cost, and nothing leaves the laptop.
   pages cited, and an honest "not answered by this book" when it isn't
 - 🔎 **Ask the library** — "russian books about business added recently" sets
   the filters it means, so you can see and adjust the interpretation
+- 📖 **Compare across books** — "how do my books explain gradient descent?"
+  puts one passage from each book that teaches it side by side, with the page
+  numbers, so you can see which treatment suits you before opening anything
 - 📚 **Smart collections** — shelves proposed from what your library actually
   contains
 - 📝 **Summaries** and **metadata repair** — run-together filenames turned back
