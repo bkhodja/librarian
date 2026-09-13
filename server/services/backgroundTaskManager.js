@@ -21,10 +21,16 @@ const EventEmitter = require('events');
 class BackgroundTaskManager extends EventEmitter {
   constructor() {
     super();
-    this.booksFolder = '/Volumes/Storage/Books';
+    // path.resolve drops a trailing slash, so a folder given as ".../Books/"
+    // still yields file paths that match the ones already in the database.
+    this.booksFolder = path.resolve(process.env.BOOKS_FOLDER || '/Volumes/Storage/Books');
     this.fileWatcher = null;
     this.processingQueue = new Set();
     this.activeJobs = 0;
+    // Thumbnail jobs by book id. processBook and the periodic sweep both
+    // pick up a new book while its cover is still NULL, so without this the
+    // same PDF went through Ghostscript twice at once.
+    this.thumbnailJobs = new Map();
     this.isGeneratingThumbnails = false;
     this.isEnriching = false;
     this.isTagging = false;
@@ -173,7 +179,17 @@ class BackgroundTaskManager extends EventEmitter {
       if (ext === '.pdf' || ext === '.epub') {
         console.log(`📖 New book detected: ${path.basename(filePath)}`);
 
-        const stats = await fs.stat(filePath);
+        // A rejection here is unhandled and, on current Node, fatal. The
+        // file can legitimately be gone by now — a download manager that
+        // renames or removes its temporary file, for instance.
+        let stats;
+        try {
+          stats = await fs.stat(filePath);
+        } catch (error) {
+          console.warn(`Skipping ${path.basename(filePath)}: ${error.message}`);
+          return;
+        }
+
         const books = [{
           file_path: filePath,
           file_name: path.basename(filePath),
@@ -217,10 +233,22 @@ class BackgroundTaskManager extends EventEmitter {
       if (ext === '.pdf' || ext === '.epub') {
         console.log(`📝 Book modified: ${path.basename(filePath)}`);
 
-        const stats = await fs.stat(filePath);
+        let stats;
+        try {
+          stats = await fs.stat(filePath);
+        } catch (error) {
+          console.warn(`Skipping ${path.basename(filePath)}: ${error.message}`);
+          return;
+        }
+
+        // The contents changed, so everything derived from them is stale.
+        // In particular a download that stalled long enough to be picked up
+        // half-written got a placeholder cover and a failed parse; clearing
+        // both lets the finished file be read properly.
         db.prepare(`
           UPDATE books
-          SET file_size = ?, last_modified = CURRENT_TIMESTAMP
+          SET file_size = ?, last_modified = CURRENT_TIMESTAMP,
+              thumbnail_path = NULL, needs_review = 0
           WHERE file_path = ?
         `).run(stats.size, filePath);
 
@@ -520,7 +548,7 @@ class BackgroundTaskManager extends EventEmitter {
         WHERE thumbnail_path IS NULL
           AND needs_review = 0
         LIMIT ?
-      `).all(THUMBNAIL_BATCH_SIZE);
+      `).all(THUMBNAIL_BATCH_SIZE).filter((book) => !this.thumbnailJobs.has(book.id));
 
       if (batch.length === 0) return;
 
@@ -544,7 +572,17 @@ class BackgroundTaskManager extends EventEmitter {
     }
   }
 
-  async generateThumbnailForBook(book) {
+  generateThumbnailForBook(book) {
+    // A second caller for a book already in flight waits on the same job.
+    let job = this.thumbnailJobs.get(book.id);
+    if (!job) {
+      job = this.renderThumbnail(book).finally(() => this.thumbnailJobs.delete(book.id));
+      this.thumbnailJobs.set(book.id, job);
+    }
+    return job;
+  }
+
+  async renderThumbnail(book) {
     try {
       if (!(await this.fileExists(book.file_path))) {
         console.warn(`Skipping thumbnail for missing file: ${book.file_path}`);

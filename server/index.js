@@ -47,6 +47,22 @@ const logger = winston.createLogger({
   ]
 });
 
+// A stray error in a background job used to take the whole server down, with
+// the reason visible only in the terminal that launched it — and nothing
+// restarts the server, so the app sat dead until relaunched. Log it to
+// error.log and carry on: for a personal library a lost thumbnail is far
+// cheaper than a dead backend.
+process.on('uncaughtException', (error, origin) => {
+  logger.error('Uncaught exception (server kept running)', { origin, stack: error.stack });
+  console.error('Uncaught exception (server kept running):', error);
+});
+
+process.on('unhandledRejection', (reason) => {
+  const stack = reason && reason.stack ? reason.stack : String(reason);
+  logger.error('Unhandled rejection (server kept running)', { stack });
+  console.error('Unhandled rejection (server kept running):', reason);
+});
+
 // Create Express app
 const app = express();
 const PORT = process.env.PORT || 3001;
