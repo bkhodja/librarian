@@ -158,6 +158,27 @@ Two things to know:
 - **Start the window with `npm run ui`, not `npm start`.** `npm start` launches
   its own backend and collides with the agent on port 3001.
 
+### The app at http://localhost:3001
+
+The agent also serves the built UI, so the library is always one bookmark
+away — no Vite, no Electron, nothing to start (the same arrangement as
+pdf-grabber's dashboard on :8765). In Safari, File → Add to Dock turns it into
+an app with its own icon and window.
+
+It serves whatever is in `dist/`, so rebuild after changing the frontend, and
+restart the agent after changing the server (it runs plain `node`, not
+nodemon):
+
+```bash
+npm run react:build                                        # frontend changes
+launchctl kickstart -k gui/$(id -u)/com.khodjayevb.bibliotheka   # server changes
+```
+
+The server listens on 127.0.0.1 only; set `HOST=0.0.0.0` in `.env` to reach it
+from other devices. Only the app's own pages (this port, and Vite on 5173) may
+call the API — other websites get a 403 — and `/pdf` serves only `.pdf` and
+`.epub` files inside `BOOKS_FOLDER`.
+
 ## Testing against a copy of your library
 
 Anything that deletes or merges books should be tried against a copy, not the
