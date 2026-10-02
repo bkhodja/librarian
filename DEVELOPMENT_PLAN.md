@@ -5,7 +5,7 @@
 **Name:** Librarian
 **Purpose:** Personal book catalog application for macOS
 **Status:** Phase 16 - Always on
-**Last Updated:** 2026-09-14
+**Last Updated:** 2026-10-01
 
 ### Core Requirements
 
@@ -102,6 +102,8 @@
   breaks the launchd agent's scan until it is re-granted (see README)
 - The first request after a few idle minutes waits ~5-10s for Ollama to
   reload the 24GB model
+- The app at :3001 is only as fresh as `dist/`; frontend changes need
+  `npm run react:build`, and server changes a `launchctl kickstart`
 
 ---
 
@@ -542,6 +544,27 @@ hangs, I am not seeing thumbnails" — which turned out to be a crash.
 - [x] 112s → 3s: titles normalised once, an early-exit Levenshtein, and the
       author comparison only for pairs whose titles already match
 
+**The app is always there**
+
+- [x] The agent serves the built UI from `dist/`, so http://localhost:3001
+      is the library whenever the Mac is on — no Vite, no Electron, the
+      same arrangement as pdf-grabber's dashboard on :8765. Safari's Add to
+      Dock gives it an icon and a window. `npm run ui` stays for development
+
+**Locked down**
+
+Always on made an old hole matter: `/pdf` served any file on the disk by
+absolute path, and wildcard CORS let any website open in the browser read
+the reply — `~/.ssh` included.
+
+- [x] `/pdf` serves only `.pdf` and `.epub` files whose realpath is inside
+      `BOOKS_FOLDER`; neither `..` nor a symlink leads out
+- [x] Other websites' origins get a 403. This also stops a cross-site form
+      POST reaching bulk delete, which since this phase moves files to the
+      Trash
+- [x] Listens on 127.0.0.1, and refuses a non-loopback `Host` header against
+      DNS rebinding; `HOST=0.0.0.0` opts back into the network
+
 ---
 
 ## Database Schema
@@ -962,6 +985,14 @@ Bibliotheka/
 ---
 
 ## Changelog
+
+### 2026-10-01 - Phase 16 - The App at localhost:3001
+
+- **The always-on backend serves the UI**: http://localhost:3001 is the
+  library with nothing started by hand.
+- **`/pdf` confined to the books folder** — it served any file on the disk,
+  readable by any website through wildcard CORS. Other origins now get a
+  403, the server listens on loopback only, and DNS rebinding is refused.
 
 ### 2026-09-14 - Phase 16 - Always On
 
