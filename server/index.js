@@ -32,15 +32,21 @@ const backgroundTaskManager = require('./services/backgroundTaskManager');
 const ocrQueueManager = require('./services/ocrQueueManager');
 
 // Configure logger
+//
+// The server runs for months under launchd, so the files are capped: each
+// rotates at 5MB and keeps three generations (combined.log is the newest).
+// Uncapped, a line per request — mostly the UI polling /api/books — grew
+// combined.log to 35MB. LOG_LEVEL=debug brings the request lines back.
+const rotating = { maxsize: 5 * 1024 * 1024, maxFiles: 3, tailable: true };
 const logger = winston.createLogger({
-  level: 'info',
+  level: process.env.LOG_LEVEL || 'info',
   format: winston.format.combine(
     winston.format.timestamp(),
     winston.format.json()
   ),
   transports: [
-    new winston.transports.File({ filename: 'error.log', level: 'error' }),
-    new winston.transports.File({ filename: 'combined.log' }),
+    new winston.transports.File({ filename: 'error.log', level: 'error', ...rotating }),
+    new winston.transports.File({ filename: 'combined.log', ...rotating }),
     new winston.transports.Console({
       format: winston.format.simple()
     })
@@ -144,7 +150,7 @@ app.use('/pdf', (req, res, next) => {
 
 // Request logging
 app.use((req, res, next) => {
-  logger.info(`${req.method} ${req.path}`);
+  logger.debug(`${req.method} ${req.path}`);
   next();
 });
 

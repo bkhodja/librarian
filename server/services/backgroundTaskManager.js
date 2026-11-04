@@ -76,7 +76,7 @@ class BackgroundTaskManager extends EventEmitter {
   }
 
   async performInitialScan() {
-    console.log('📚 Starting initial library scan...');
+    console.log('📚 Scanning the books folder for new files...');
     try {
       const newBooks = await this.scanForNewBooks();
       if (newBooks.length > 0) {
