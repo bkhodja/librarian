@@ -5,7 +5,7 @@
 **Name:** Librarian
 **Purpose:** Personal book catalog application for macOS
 **Status:** Phase 16 - Always on
-**Last Updated:** 2026-10-01
+**Last Updated:** 2026-11-04
 
 ### Core Requirements
 
@@ -27,7 +27,7 @@
 - SQLite database with complete schema
 - RESTful API endpoints for all entities
 - UI with Tailwind CSS v3 styling
-- PDF file discovery and scanning (272 books loaded)
+- PDF and ePUB discovery and scanning (5,320 books)
 - Fast/full scan modes for library
 - PDF metadata extraction with pdf-parse
 - Language detection with franc
@@ -55,9 +55,9 @@
 - **External API metadata enrichment (Open Library, Google Books)**
 - **Manual metadata fetch button in UI**
 - **Batch metadata enrichment scripts**
-- **Full-text search with SQLite FTS5 (298/299 books indexed)**
+- **Full-text search with SQLite FTS5 (5,088/5,103 books with text, 1.6M pages)**
 - **Search modes: all fields, title only, author only, content only**
-- **Enhanced OCR with Tesseract.js for scanned PDFs**
+- **Background OCR of scanned PDFs with Apple Vision (Tesseract.js off macOS)**
 - **OCR API endpoints for processing scanned documents**
 - **Multi-language OCR support (Russian & English)**
 - **Integrated PDF viewer with react-pdf**
@@ -70,12 +70,8 @@
 - **Professional book card design with prominent thumbnails**
 - **Simplified UI with essential book information**
 - **Fixed Collections sidebar (sticky positioning)**
-- **Background OCR processing queue with Tesseract.js (disabled - needs PDF-to-image conversion)**
-- **OCR queue management API endpoints**
-- **OCR status UI component with real-time updates**
-- **Priority-based queue processing (smaller files first)**
-- **Concurrent OCR processing with worker pool**
-- **Automatic retry mechanism for failed OCR jobs**
+- **OCR status UI component**
+- **Smallest scanned books OCR'd first; failures not retried every pass**
 - **Language filter for multi-language libraries**
 - **Auto-tagging suggestions based on content analysis (~200+ keywords)**
 - **Duplicate detection system using Levenshtein distance algorithm**
@@ -83,14 +79,15 @@
 - **AI Semantic Search with local embeddings (@xenova/transformers)**
 - **Hybrid search combining FTS5 keyword + semantic similarity**
 - **Similar Books discovery in BookDetailModal**
-- **AI-Powered Book Summaries (Claude API + extractive fallback)**
+- **Book summaries with the local model (Ollama), extractive fallback without it**
 - **Three-tier summarization: single-pass, map-reduce, sampled**
 
 ### 🚧 Next Priority Tasks
 
 1. **The 11 books no model can tag** — decide whether the vocabulary needs
    `operating-systems`, `computer-graphics`, `quantum-computing`, or leave them
-2. **Reading Statistics Dashboard**
+2. **Reading Statistics** — the dashboard shows totals and what is being
+   read; still to do:
    - Daily/weekly/monthly reading stats
    - Books completed tracking
    - Reading velocity and patterns
@@ -274,7 +271,7 @@
   - [x] Content indexing in FTS5 table
   - [x] OCR confidence scoring support
 
-### Phase 9: Reading Progress & PDF Viewer ✅ IN PROGRESS
+### Phase 9: Reading Progress & PDF Viewer ✅ COMPLETE
 
 - [x] **Integrated PDF viewer component**
   - [x] react-pdf integration with pdfjs-dist
@@ -291,7 +288,7 @@
 - [x] **Collection management enhancements**
   - [x] Add/remove books from collections in BookDetailModal
   - [x] Collection refresh on changes
-  - [ ] Fix thumbnail preservation issue
+  - [x] Fix thumbnail preservation issue (collections showed no covers; fixed in Phase 16)
 
 ### Phase 10: Background OCR Processing ✅ COMPLETE
 
@@ -892,60 +889,30 @@ book_summaries (
 
 ```text
 Bibliotheka/
-├── electron/
-│   ├── main.js
-│   ├── preload.js
-│   └── menu.js
+├── electron/                 # main.js, preload.js
 ├── src/
-│   ├── components/
-│   │   ├── BookDetailModal.jsx
-│   │   ├── BookCard.jsx
-│   │   ├── CollectionsSidebar.jsx
-│   │   ├── PDFViewer.jsx
-│   │   ├── EpubViewer.jsx
-│   │   ├── ReadingProgress.jsx
-│   │   ├── FullTextSearch.jsx
-│   │   ├── OCRStatus.jsx
-│   │   └── DuplicateManager.jsx
-│   ├── pages/
-│   ├── hooks/
-│   │   └── useDarkMode.js
-│   ├── utils/
-│   └── api/
+│   ├── App.jsx               # library grid, filters, toolbar
+│   ├── components/           # modals, readers, sidebar, cards
+│   └── hooks/useDarkMode.js
 ├── server/
-│   ├── routes/
-│   │   ├── books.js
-│   │   ├── scan.js
-│   │   ├── collections.js
-│   │   ├── progress.js
-│   │   ├── tags.js
-│   │   ├── ocrQueue.js
-│   │   ├── autoTags.js
-│   │   └── duplicates.js
-│   ├── services/
-│   │   ├── thumbnailGeneratorPdf2pic.js
-│   │   ├── pdfProcessor.js
-│   │   ├── pdfContentExtractor.js
-│   │   ├── epubProcessorSimple.js
-│   │   ├── epubProcessorImproved.js
-│   │   ├── backgroundTaskManager.js
-│   │   ├── ocrQueueManager.js
-│   │   ├── autoTagger.js
-│   │   └── duplicateDetector.js
-│   ├── database/
-│   │   └── init.js
-│   └── index.js
-├── public/
-│   └── thumbnails/
-├── reprocess-books.js
-├── test-specific-pdf.js
-├── scripts/
-│   ├── build.js
-│   └── package.js
-├── .github/
-│   └── workflows/
-│       └── ci.yml
-└── tests/
+│   ├── index.js              # Express app; also serves dist/ on :3001
+│   ├── database/init.js      # schema and migrations; honours DATABASE_PATH
+│   ├── routes/               # one router per /api/* area
+│   └── services/
+│       ├── backgroundTaskManager.js  # scan, watch, thumbnails, tags, text, OCR, hashes
+│       ├── bookProcessorPool.js      # worker threads for ingest
+│       ├── ollamaClient.js           # local model access
+│       ├── aiTagger.js, tagVocabulary.js
+│       ├── bookQA.js, crossBookCompare.js, queryInterpreter.js, summaryService.js
+│       ├── duplicateDetector.js, bookRemoval.js
+│       └── visionOcrExtractor.js, pdfOcrExtractor.js, ocrChild.js
+├── tools/visionocr/main.swift  # Apple Vision OCR, built on first use
+├── launchd/                  # always-on agent definition
+├── scripts/                  # maintenance scripts, run from the project root
+│   └── diagnostics/          # one-off investigations against the live library
+├── tests/                    # Jest unit tests; setup.js points them at a temp DB
+├── public/thumbnails/        # generated covers (untracked)
+└── .github/workflows/ci.yml
 ```
 
 ### Naming Conventions
@@ -985,6 +952,26 @@ Bibliotheka/
 ---
 
 ## Changelog
+
+### 2026-11-04 - Housekeeping
+
+- **Tagging lock fixed** — the enrichment pass's `finally` also cleared the
+  tagging pass's in-progress flag (two lines meant for the constructor), so
+  every five minutes a second tagging pass could start on the same books.
+- **Logs capped** — `combined.log` and `error.log` rotate at 5MB, three
+  generations; request lines moved to `debug` (`LOG_LEVEL=debug`). They were
+  99.8% of `combined.log` (35MB, mostly UI polling) and three quarters of
+  launchd's `logs/server.log`.
+- **Real unit tests** — `npm test` ran nothing (no file matched Jest's
+  pattern). 34 tests now cover FTS query building, duplicate matching
+  (including the Unicode title regression), metadata plausibility and tag
+  canonicalisation, against a throwaway database. CI runs them on Node 22
+  and fails on a failure; the lint step, with no ESLint installed, is gone.
+- **Tidied** — maintenance scripts moved to `scripts/`, the hand-run
+  diagnostics (whose `./server` paths no longer resolved from `tests/`) to
+  `scripts/diagnostics/`; three unused services, four one-off root test
+  scripts and two empty root databases removed.
+- README and this plan brought up to date.
 
 ### 2026-10-01 - Phase 16 - The App at localhost:3001
 
@@ -1288,7 +1275,7 @@ Bibliotheka/
   - Metadata source badges
   - Category and rating display
 - Batch processing:
-  - enrich-all-metadata.js script for bulk enrichment
+  - scripts/enrich-all-metadata.js script for bulk enrichment
   - Progress tracking with statistics
   - Force refresh option for re-enrichment
 - Database enhancements:
@@ -1312,7 +1299,7 @@ Bibliotheka/
   - Database schema enhanced with new fields (isbn, publisher, edition, description)
   - Integration with existing PDF processing pipeline
 - Batch reprocessing capability:
-  - Created reprocess-books.js script for existing library
+  - Created scripts/reprocess-books.js script for existing library
   - Successfully processed 272 books with high extraction rates:
     - ISBNs extracted: 87% of books
     - Publishers identified: 92% of books

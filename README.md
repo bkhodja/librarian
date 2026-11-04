@@ -75,21 +75,23 @@ and tagging falls back to keyword matching.
 
 ## Tech Stack
 
-- **Frontend**: React 18 + Tailwind CSS
-- **Desktop**: Electron 28
+- **Frontend**: React 19 + Vite + Tailwind CSS
+- **Desktop**: Electron 40
 - **Backend**: Express.js + Node.js
 - **Database**: SQLite with better-sqlite3
 - **PDF Processing**:
   - pdf-parse (metadata extraction)
   - Apple Vision (OCR for scanned PDFs on macOS; Tesseract.js elsewhere)
   - pdf2pic + GraphicsMagick (thumbnail generation)
+- **Local AI**: Ollama
+- **Tests**: Jest
 - **Build System**: GitHub Actions CI/CD
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js 20+ LTS
+- Node.js 22 LTS
 - npm or yarn
 - macOS (primary target platform)
 - GraphicsMagick (for thumbnail generation)
@@ -115,10 +117,12 @@ npm install
 ```
 
 3. Configure your Books folder path:
-Edit `server/routes/scan.js` line 8:
-```javascript
-const BOOKS_FOLDER = '/path/to/your/Books';
+```bash
+cp .env.example .env
+# then set BOOKS_FOLDER=/path/to/your/Books
 ```
+`.env.example` documents every other setting (port, database, OCR, Ollama
+models, batch sizes).
 
 4. Start the application:
 ```bash
@@ -145,7 +149,11 @@ launchctl kickstart -k gui/$(id -u)/com.khodjayevb.bibliotheka   # restart
 launchctl bootout gui/$(id -u)/com.khodjayevb.bibliotheka        # stop
 ```
 
-Logs go to `logs/server.log` and `logs/server.err.log`.
+Logs go to `logs/server.log` and `logs/server.err.log`. The server also
+writes `combined.log` and `error.log` in the project root; each rotates at 5MB
+and keeps three files. Requests are not logged unless `LOG_LEVEL=debug`.
+`logs/server.log` is launchd's own capture of the console and is not rotated;
+it grows by a few MB a month and is safe to truncate.
 
 Two things to know:
 
@@ -217,9 +225,25 @@ Bibliotheka/
 ├── server/         # Express backend
 │   ├── routes/     # API endpoints
 │   └── database/   # SQLite setup
-├── scripts/        # Build and utility scripts
-└── data/          # SQLite database files (generated)
+├── scripts/        # Maintenance scripts (run from the project root)
+│   └── diagnostics/ # One-off investigation scripts against the live library
+├── tests/          # Jest unit tests (npm test)
+├── tools/visionocr/ # Swift OCR helper, built on first use
+├── launchd/        # The always-on agent definition
+└── data/           # SQLite database files (generated)
 ```
+
+### Maintenance scripts
+
+Run from the project root, e.g. `node scripts/retag-books.js --dry-run`. Each
+opens the database `DATABASE_PATH` selects, so try them on a copy first.
+
+- `scripts/index-pages.js` - index book pages for search (`--ocr` forces OCR)
+- `scripts/retag-books.js` - normalise tags and tag untagged books
+- `scripts/repair-metadata.js` / `scripts/repair-with-ai.js` - fix titles and authors
+- `scripts/enrich-all-metadata.js` - look books up on Open Library / Google Books
+- `scripts/reprocess-books.js`, `scripts/reprocess-epub.js`,
+  `scripts/regenerate-epub-thumbnails.js`, `scripts/index-books-fts.js`
 
 ### Available Scripts
 
@@ -228,7 +252,7 @@ Bibliotheka/
 - `npm run server` - Start backend server only
 - `npm run react:start` - Start React dev server
 - `npm run electron:dev` - Start Electron (requires React running)
-- `npm test` - Run tests
+- `npm test` - Run the unit tests (against a throwaway database, never the library)
 - `npm run build` - Build for production
 
 ## Current Status
@@ -272,14 +296,16 @@ Bibliotheka/
 - Duplicate detection and merging system
 - Language-based filtering
 
+Phases 6-10 and 13-16 (collections, dark mode, full-text search and OCR,
+the reader, semantic search, summaries, local AI, always on) are recorded in
+[DEVELOPMENT_PLAN.md](./DEVELOPMENT_PLAN.md).
+
 ### Next Steps
 
 🚧 **Upcoming Features**:
-- PDF-to-image conversion for OCR completion
-- Smart collections with rule-based filtering
-- Reading statistics dashboard
+- Daily/weekly/monthly reading statistics
 - Export/import functionality
-- Enhanced duplicate detection with file hash comparison
+- A vocabulary decision for the 11 books no model can tag
 
 ## License
 
