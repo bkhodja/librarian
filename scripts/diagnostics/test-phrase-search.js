@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-const enhancedSearch = require('./server/services/enhancedSearchService');
-const { db } = require('./server/database/init');
+const enhancedSearch = require('../../server/services/enhancedSearchService');
+const { db } = require('../../server/database/init');
 
 async function testPhraseSearch() {
   console.log('\n' + '='.repeat(80));

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-const enhancedOCR = require('./server/services/enhancedOCR');
-const { db } = require('./server/database/init');
+const enhancedOCR = require('../../server/services/enhancedOCR');
+const { db } = require('../../server/database/init');
 
 async function testOCR() {
   console.log('\n' + '='.repeat(80));

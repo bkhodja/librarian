@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const { db } = require('./server/database/init');
+const { db } = require('../../server/database/init');
 
 // Diagnose the page mismatch issue
 console.log('🔍 Diagnosing Page Number Mismatch\n');

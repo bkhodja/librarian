@@ -1,5 +1,5 @@
-const fullTextSearch = require('./server/services/fullTextSearch');
-const { db } = require('./server/database/init');
+const fullTextSearch = require('../../server/services/fullTextSearch');
+const { db } = require('../../server/database/init');
 
 async function testFTSIndexing() {
   console.log('\n' + '='.repeat(80));

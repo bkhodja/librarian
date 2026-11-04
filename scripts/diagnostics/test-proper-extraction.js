@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-const properPdfExtractor = require('./server/services/properPdfExtractor');
-const { db } = require('./server/database/init');
+const properPdfExtractor = require('../../server/services/properPdfExtractor');
+const { db } = require('../../server/database/init');
 
 async function testExtraction() {
   console.log('🔍 Testing Proper PDF Extraction\n');

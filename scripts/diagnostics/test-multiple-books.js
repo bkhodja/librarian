@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
-const { db } = require('./server/database/init');
-const enhancedSearch = require('./server/services/enhancedSearchService');
-const properPdfExtractor = require('./server/services/properPdfExtractor');
+const { db } = require('../../server/database/init');
+const enhancedSearch = require('../../server/services/enhancedSearchService');
+const properPdfExtractor = require('../../server/services/properPdfExtractor');
 
 async function testMultipleBooks() {
   console.log('🧪 COMPREHENSIVE PAGE NAVIGATION TEST');

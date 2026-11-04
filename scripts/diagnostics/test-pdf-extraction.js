@@ -1,4 +1,4 @@
-const pdfProcessor = require('./server/services/pdfProcessor');
+const pdfProcessor = require('../../server/services/pdfProcessor');
 const path = require('path');
 
 // Test cases with different filename patterns

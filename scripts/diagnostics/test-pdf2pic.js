@@ -6,7 +6,7 @@ async function testPdf2pic() {
     console.log('Testing pdf2pic...');
 
     // Get the first PDF from database
-    const { db } = require('./server/database/init');
+    const { db } = require('../../server/database/init');
     const book = db.prepare('SELECT * FROM books WHERE id = 1').get();
 
     if (!book) {

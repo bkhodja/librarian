@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 const pdfParse = require('pdf-parse');
-const { db } = require('./server/database/init');
+const { db } = require('../../server/database/init');
 const fs = require('fs');
 
 async function detectPageOffset(bookId, filePath) {

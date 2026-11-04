@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-const { db } = require('./server/database/init');
-const enhancedSearch = require('./server/services/enhancedSearchService');
+const { db } = require('../../server/database/init');
+const enhancedSearch = require('../../server/services/enhancedSearchService');
 const fs = require('fs');
 
 // Test universal page navigation with different books and offsets

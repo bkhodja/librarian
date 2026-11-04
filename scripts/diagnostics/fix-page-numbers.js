@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const { db } = require('./server/database/init');
+const { db } = require('../../server/database/init');
 
 // This script verifies and tests the page numbering system
 // We store PHYSICAL page numbers in the database

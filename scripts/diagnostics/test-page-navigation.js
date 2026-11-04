@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-const { db } = require('./server/database/init');
-const enhancedSearch = require('./server/services/enhancedSearchService');
+const { db } = require('../../server/database/init');
+const enhancedSearch = require('../../server/services/enhancedSearchService');
 
 // Test the complete page navigation flow
 async function testPageNavigation() {
@@ -31,7 +31,7 @@ async function testPageNavigation() {
 
   if (occurrences.length === 0) {
     console.log('❌ No occurrences found. Book may not be indexed.');
-    console.log('   Run: node index-pages.js to index all books\n');
+    console.log('   Run: node scripts/index-pages.js to index all books\n');
     return;
   }
 

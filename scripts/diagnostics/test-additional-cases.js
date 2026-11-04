@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-const { db } = require('./server/database/init');
-const enhancedSearch = require('./server/services/enhancedSearchService');
+const { db } = require('../../server/database/init');
+const enhancedSearch = require('../../server/services/enhancedSearchService');
 
 console.log('🔍 Additional Test Cases for Page Navigation\n');
 console.log('=' .repeat(70));

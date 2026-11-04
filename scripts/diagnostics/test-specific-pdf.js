@@ -1,5 +1,5 @@
-const pdfProcessor = require('./server/services/pdfProcessor');
-const contentExtractor = require('./server/services/pdfContentExtractor');
+const pdfProcessor = require('../../server/services/pdfProcessor');
+const contentExtractor = require('../../server/services/pdfContentExtractor');
 const pdf = require('pdf-parse');
 const fs = require('fs').promises;
 const path = require('path');
