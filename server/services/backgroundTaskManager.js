@@ -570,8 +570,6 @@ class BackgroundTaskManager extends EventEmitter {
       console.error('Metadata enrichment pass failed:', error.message);
     } finally {
       this.isEnriching = false;
-    this.isTagging = false;
-    this.warnedNoOllama = false;
     }
   }
 
