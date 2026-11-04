@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-const fullTextSearch = require('./server/services/fullTextSearch');
-const { db } = require('./server/database/init');
+const fullTextSearch = require('../server/services/fullTextSearch');
+const { db } = require('../server/database/init');
 
 async function indexBooks() {
   console.log('\n' + '='.repeat(80));

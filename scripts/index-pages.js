@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-const enhancedSearch = require('./server/services/enhancedSearchService');
-const { db } = require('./server/database/init');
+const enhancedSearch = require('../server/services/enhancedSearchService');
+const { db } = require('../server/database/init');
 
 async function indexPages() {
   console.log('\n' + '='.repeat(80));
@@ -102,7 +102,7 @@ async function indexPages() {
   console.log(`  Coverage: ${finalStats.coverage}%`);
 
   if (finalStats.indexedBooks < finalStats.totalBooks) {
-    console.log(`\n💡 Tip: Run 'node index-pages.js' to index more books`);
+    console.log(`\n💡 Tip: Run 'node scripts/index-pages.js' to index more books`);
   }
 }
 

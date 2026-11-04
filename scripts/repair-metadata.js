@@ -8,14 +8,14 @@
  *      title and author from Open Library / Google Books.
  *
  * Usage:
- *   node repair-metadata.js            # both passes
- *   node repair-metadata.js --local    # pass 1 only, no network
- *   node repair-metadata.js --dry-run  # report without writing
- *   node repair-metadata.js --limit=50 # cap the remote pass
+ *   node scripts/repair-metadata.js            # both passes
+ *   node scripts/repair-metadata.js --local    # pass 1 only, no network
+ *   node scripts/repair-metadata.js --dry-run  # report without writing
+ *   node scripts/repair-metadata.js --limit=50 # cap the remote pass
  */
-const { db } = require('./server/database/init');
-const quality = require('./server/services/metadataQuality');
-const enricher = require('./server/services/bookMetadataEnricher');
+const { db } = require('../server/database/init');
+const quality = require('../server/services/metadataQuality');
+const enricher = require('../server/services/bookMetadataEnricher');
 
 const args = process.argv.slice(2);
 const dryRun = args.includes('--dry-run');

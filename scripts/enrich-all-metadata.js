@@ -1,5 +1,5 @@
-const metadataEnricher = require('./server/services/bookMetadataEnricher');
-const { db } = require('./server/database/init');
+const metadataEnricher = require('../server/services/bookMetadataEnricher');
+const { db } = require('../server/database/init');
 
 async function enrichAllBooks() {
   console.log('\n' + '='.repeat(80));

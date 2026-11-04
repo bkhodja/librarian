@@ -1,5 +1,5 @@
 // Script to trigger reprocessing of ePUB files
-const { db } = require('./server/database/init');
+const { db } = require('../server/database/init');
 
 console.log('🔄 Marking ePUB files for reprocessing...\n');
 

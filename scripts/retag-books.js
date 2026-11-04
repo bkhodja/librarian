@@ -1,15 +1,15 @@
 /**
  * Tag maintenance.
  *
- *   node retag-books.js              # normalise legacy tags, then tag untagged books
- *   node retag-books.js --normalize  # normalise only, no model calls
- *   node retag-books.js --all        # clear every tag and derive them all again
- *   node retag-books.js --limit=50   # cap how many books are tagged this run
+ *   node scripts/retag-books.js              # normalise legacy tags, then tag untagged books
+ *   node scripts/retag-books.js --normalize  # normalise only, no model calls
+ *   node scripts/retag-books.js --all        # clear every tag and derive them all again
+ *   node scripts/retag-books.js --limit=50   # cap how many books are tagged this run
  *
  * Runs against the local model through Ollama. Nothing leaves the machine.
  */
-const { db } = require('./server/database/init');
-const aiTagger = require('./server/services/aiTagger');
+const { db } = require('../server/database/init');
+const aiTagger = require('../server/services/aiTagger');
 
 const args = process.argv.slice(2);
 const normalizeOnly = args.includes('--normalize');

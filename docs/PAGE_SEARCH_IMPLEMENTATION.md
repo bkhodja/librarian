@@ -71,7 +71,7 @@ Implemented a comprehensive page-level search system that allows users to naviga
 - `test-multiple-books.js` - Comprehensive page navigation testing
 - `test-pdf-highlighting.js` - Search term highlighting verification
 - `test-proper-extraction.js` - PDF extraction accuracy testing
-- `index-pages.js` - Page indexing utility
+- `scripts/index-pages.js` - Page indexing utility
 
 ## Performance Metrics
 - **Indexing Speed**: ~1000 pages/minute

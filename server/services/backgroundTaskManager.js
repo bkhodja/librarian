@@ -351,7 +351,7 @@ class BackgroundTaskManager extends EventEmitter {
   /**
    * OCR the next scanned book that has no text. Smallest first: the early
    * results arrive in minutes rather than hours, and a book that fails is
-   * marked so it is not retried on every pass — index-pages.js --ocr can
+   * marked so it is not retried on every pass — scripts/index-pages.js --ocr can
    * force one by hand.
    */
   async ocrScannedBooks() {

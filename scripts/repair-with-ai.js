@@ -1,15 +1,15 @@
 /**
  * Metadata repairs that need the local model.
  *
- *   node repair-with-ai.js              # titles and authors
- *   node repair-with-ai.js --limit=20   # try a few first
- *   node repair-with-ai.js --dry-run    # show what it would change
+ *   node scripts/repair-with-ai.js              # titles and authors
+ *   node scripts/repair-with-ai.js --limit=20   # try a few first
+ *   node scripts/repair-with-ai.js --dry-run    # show what it would change
  *
  * Runs against Ollama on this machine. Nothing leaves it.
  */
-const repair = require('./server/services/aiMetadataRepair');
-const ollama = require('./server/services/ollamaClient');
-const { db } = require('./server/database/init');
+const repair = require('../server/services/aiMetadataRepair');
+const ollama = require('../server/services/ollamaClient');
+const { db } = require('../server/database/init');
 
 const args = process.argv.slice(2);
 const dryRun = args.includes('--dry-run');

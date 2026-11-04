@@ -1,5 +1,5 @@
-const epubProcessor = require('./server/services/epubProcessorImproved');
-const { db } = require('./server/database/init');
+const epubProcessor = require('../server/services/epubProcessorImproved');
+const { db } = require('../server/database/init');
 const path = require('path');
 const fs = require('fs');
 
@@ -32,7 +32,7 @@ async function regenerateEpubThumbnails() {
     }
 
     // Generate thumbnail
-    const outputPath = path.join(__dirname, 'public/thumbnails', `${book.id}.png`);
+    const outputPath = path.join(__dirname, '../public/thumbnails', `${book.id}.png`);
 
     try {
       const result = await epubProcessor.generateThumbnail(book.file_path, outputPath);

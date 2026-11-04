@@ -1,6 +1,6 @@
-const { db } = require('./server/database/init');
-const pdfProcessor = require('./server/services/pdfProcessor');
-const contentExtractor = require('./server/services/pdfContentExtractor');
+const { db } = require('../server/database/init');
+const pdfProcessor = require('../server/services/pdfProcessor');
+const contentExtractor = require('../server/services/pdfContentExtractor');
 
 async function reprocessBooks() {
   console.log('Re-processing existing books to extract ISBN, publisher, and other metadata...\n');
