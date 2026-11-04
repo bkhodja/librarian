@@ -76,7 +76,7 @@
 - **Auto-tagging suggestions based on content analysis (~200+ keywords)**
 - **Duplicate detection system using Levenshtein distance algorithm**
 - **Duplicate merging with metadata preservation**
-- **AI Semantic Search with local embeddings (@xenova/transformers)**
+- **AI Semantic Search with local embeddings (@huggingface/transformers)**
 - **Hybrid search combining FTS5 keyword + semantic similarity**
 - **Similar Books discovery in BookDetailModal**
 - **Book summaries with the local model (Ollama), extractive fallback without it**
@@ -91,6 +91,11 @@
    - Daily/weekly/monthly reading stats
    - Books completed tracking
    - Reading velocity and patterns
+3. **Embeddings for the rest of the library** — only 826 of 5,320 books
+   have one: they were backfilled once in Phase 15 and nothing embeds new
+   books, so semantic search and Similar Books miss everything added since.
+   A background sweep like the tagging one; re-embedding the 826 at the
+   same time makes them match the new library's query vectors exactly
 
 ### 📝 Known Issues
 
@@ -133,8 +138,8 @@
 
 ### AI & Search
 
-- **Local Embeddings:** @xenova/transformers (all-MiniLM-L6-v2)
-- **AI Summaries:** @anthropic-ai/sdk (Claude Haiku 4.5)
+- **Local Embeddings:** @huggingface/transformers (all-MiniLM-L6-v2), model in `data/models/`
+- **Local Models:** Ollama (`qwen3.6:35b-a3b`, `gemma3:4b`) for summaries, Ask, compare, tags
 - **Full-Text Search:** SQLite FTS5
 - **Vector Search:** Brute-force cosine similarity in SQLite
 
@@ -952,6 +957,26 @@ Bibliotheka/
 ---
 
 ## Changelog
+
+### 2026-11-04 - Dependencies
+
+- **No high or critical advisories left** (68 → 5 low). CI's
+  `npm audit --audit-level=high` had failed every run since at least
+  September; the remaining five are one `deepmerge` advisory inside Jest
+  that has no fixed release.
+- `@xenova/transformers` → `@huggingface/transformers` 4.3 (its
+  onnxruntime-web carried a protobufjs with a code-injection advisory).
+  Same model files; query vectors agree with stored ones to a cosine of
+  0.99 and five test searches return the same first result. The model now
+  lives in `data/models/`, not inside `node_modules` where every reinstall
+  deleted it.
+- `epub-parser` and the direct `epubjs` dependency removed — nothing
+  imported either; `epub-parser` alone brought the two critical advisories
+  (`request`, `form-data`). The reader's `epubjs` gets a patched
+  `@xmldom/xmldom` by override.
+- Electron 40 → 45, sharp 0.34 → 0.35, axios, Vite, PostCSS, Jest and
+  electron-builder patch releases; patched `glob`/`minimatch` forced into
+  the dev tooling with range-limited overrides.
 
 ### 2026-11-04 - Housekeeping
 
