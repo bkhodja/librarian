@@ -2,9 +2,28 @@ const { db } = require('../database/init');
 const crypto = require('crypto');
 const path = require('path');
 
-const MODEL_NAME = 'Xenova/all-MiniLM-L6-v2';
+// Multilingual: most of the library is Russian, and all-MiniLM-L6-v2 is an
+// English model. Measured on this library as how often a book's five nearest
+// neighbours share one of its tags (tags left out of the text so they could
+// not answer for themselves): 54.8% → 61.0% overall, Russian books 43.9% →
+// 57.1%, English 72.4% → 67.9%. It also matches a Russian query to an English
+// book and back.
+const MODEL_NAME = 'Xenova/paraphrase-multilingual-MiniLM-L12-v2';
 const EMBEDDING_DIM = 384;
-const MAX_TOKENS = 512;
+
+// Bump when buildEmbeddingText changes. Stored with each vector (in
+// model_name), so the background sweep re-embeds whatever was made by an
+// older model or recipe, and searches never compare vectors from two.
+const TEXT_VERSION = 2;
+const EMBEDDING_KEY = `${MODEL_NAME}#text-v${TEXT_VERSION}`;
+
+// Embedding runs in the server process alongside OCR and the UI; ONNX Runtime
+// would otherwise take every core for a job that needs a few milliseconds.
+const INFERENCE_THREADS = 2;
+
+// A book this new may still be waiting for the tagging sweep; embedding it
+// now would only mean embedding it again once its tags land.
+const AWAIT_TAGS_MS = 24 * 60 * 60 * 1000;
 
 // Downloaded once from the Hugging Face hub, then read from here. The library's
 // default is inside node_modules, where every reinstall deleted it.
@@ -50,13 +69,12 @@ class EmbeddingService {
       console.log('🧠 Loading embedding model...');
       // @huggingface/transformers is the maintained successor of
       // @xenova/transformers, whose onnxruntime-web pulled in a protobufjs
-      // with a code-injection advisory. Same model files: query vectors agree
-      // with the stored ones to a cosine of 0.99, and searches return the
-      // same first result.
+      // with a code-injection advisory.
       const { pipeline, env } = await import('@huggingface/transformers');
       env.cacheDir = MODEL_CACHE;
       this.pipeline = await pipeline('feature-extraction', MODEL_NAME, {
-        dtype: 'q8'
+        dtype: 'q8',
+        session_options: { intraOpNumThreads: INFERENCE_THREADS }
       });
       console.log('✅ Embedding model loaded');
       return this.pipeline;
@@ -69,7 +87,13 @@ class EmbeddingService {
   }
 
   /**
-   * Build the text to embed for a book: title + author + tags + first N tokens of content
+   * The text a book is embedded from: title, author, subject tags and the
+   * publisher's description.
+   *
+   * Page text is left out on purpose. The first pages are copyright notices
+   * and front matter, and even a sample from further in made neighbours
+   * worse: agreement fell from 61% to 32% with it included. The fields here
+   * are short, and say what the book is about.
    */
   buildEmbeddingText(book, tags = []) {
     const parts = [];
@@ -77,14 +101,7 @@ class EmbeddingService {
     if (book.title) parts.push(book.title);
     if (book.author) parts.push(`by ${book.author}`);
     if (tags.length > 0) parts.push(tags.map(t => t.name).join(', '));
-
-    // Get content from books table or FTS
-    let content = book.content || book.ocr_text || '';
-    if (content) {
-      // Truncate to roughly MAX_TOKENS words
-      const words = content.split(/\s+/).slice(0, MAX_TOKENS);
-      parts.push(words.join(' '));
-    }
+    if (book.description) parts.push(book.description);
 
     return parts.join('. ');
   }
@@ -159,12 +176,12 @@ class EmbeddingService {
     const text = this.buildEmbeddingText(book, tags);
     const textHash = this.hashText(text);
 
-    // Check if already embedded with same content
+    // Already embedded from the same text, by the same model and recipe
     if (!forceReembed) {
       const existing = db.prepare(
-        'SELECT text_hash FROM book_embeddings WHERE book_id = ?'
+        'SELECT text_hash, model_name FROM book_embeddings WHERE book_id = ?'
       ).get(bookId);
-      if (existing && existing.text_hash === textHash) {
+      if (existing && existing.text_hash === textHash && existing.model_name === EMBEDDING_KEY) {
         return { success: true, message: 'Already embedded', skipped: true };
       }
     }
@@ -180,7 +197,7 @@ class EmbeddingService {
         model_name = excluded.model_name,
         text_hash = excluded.text_hash,
         updated_at = datetime('now')
-    `).run(bookId, buffer, MODEL_NAME, textHash);
+    `).run(bookId, buffer, EMBEDDING_KEY, textHash);
 
     return { success: true, message: 'Embedded', skipped: false };
   }
@@ -195,12 +212,7 @@ class EmbeddingService {
     if (forceReembed) {
       books = db.prepare('SELECT id, title FROM books ORDER BY id').all();
     } else {
-      books = db.prepare(`
-        SELECT b.id, b.title FROM books b
-        LEFT JOIN book_embeddings be ON b.id = be.book_id
-        WHERE be.book_id IS NULL
-        ORDER BY b.id
-      `).all();
+      books = this.pendingBooks();
     }
 
     const stats = { total: books.length, embedded: 0, skipped: 0, failed: 0 };
@@ -236,6 +248,56 @@ class EmbeddingService {
   }
 
   /**
+   * Books with no embedding, or one made by an older model or recipe. A book
+   * still waiting for its tags is left for a day; after that it is embedded
+   * without them (Ollama may be down), and checkAllBooks catches the tags
+   * when they arrive.
+   */
+  pendingBooks(limit = -1) {
+    const awaitTagsSince = new Date(Date.now() - AWAIT_TAGS_MS).toISOString();
+    return db.prepare(`
+      SELECT b.id, b.title FROM books b
+      LEFT JOIN book_embeddings be ON b.id = be.book_id
+      WHERE (be.book_id IS NULL OR be.model_name != ?)
+        AND NOT (
+          datetime(b.date_added) > datetime(?)
+          AND NOT EXISTS (SELECT 1 FROM book_tags bt WHERE bt.book_id = b.id)
+        )
+      ORDER BY b.id
+      LIMIT ?
+    `).all(EMBEDDING_KEY, awaitTagsSince, limit);
+  }
+
+  countPending() {
+    return this.pendingBooks().length;
+  }
+
+  /**
+   * Re-embed every book whose text has changed since it was embedded: a title
+   * repaired, tags added or edited, a description fetched. embedBook skips
+   * the rest by hash, so this costs a few queries per book and a model call
+   * only for the ones that changed. Yields between books so the server stays
+   * responsive.
+   */
+  async checkAllBooks() {
+    const ids = db.prepare(`
+      SELECT book_id FROM book_embeddings WHERE model_name = ?
+    `).all(EMBEDDING_KEY).map(r => r.book_id);
+
+    let updated = 0;
+    for (const id of ids) {
+      try {
+        const result = await this.embedBook(id);
+        if (!result.skipped) updated++;
+      } catch (error) {
+        // The book was deleted mid-pass, most likely; nothing to re-embed.
+      }
+      await new Promise(resolve => setImmediate(resolve));
+    }
+    return { checked: ids.length, updated };
+  }
+
+  /**
    * Semantic search: find books similar to a query string
    */
   async semanticSearch(query, options = {}) {
@@ -249,7 +311,8 @@ class EmbeddingService {
              b.isbn, b.publisher, b.publication_year, b.language
       FROM book_embeddings be
       JOIN books b ON be.book_id = b.id
-    `).all();
+      WHERE be.model_name = ?
+    `).all(EMBEDDING_KEY);
 
     const results = rows.map(row => {
       const bookVector = this.bufferToVector(row.embedding);
@@ -281,8 +344,8 @@ class EmbeddingService {
     const { limit = 5, minSimilarity = 0.3 } = options;
 
     const source = db.prepare(
-      'SELECT embedding FROM book_embeddings WHERE book_id = ?'
-    ).get(bookId);
+      'SELECT embedding FROM book_embeddings WHERE book_id = ? AND model_name = ?'
+    ).get(bookId, EMBEDDING_KEY);
 
     if (!source) {
       return { results: [], message: 'Book not yet embedded' };
@@ -295,8 +358,8 @@ class EmbeddingService {
              b.title, b.author, b.thumbnail_path
       FROM book_embeddings be
       JOIN books b ON be.book_id = b.id
-      WHERE be.book_id != ?
-    `).all(bookId);
+      WHERE be.book_id != ? AND be.model_name = ?
+    `).all(bookId, EMBEDDING_KEY);
 
     const results = rows.map(row => {
       const bookVector = this.bufferToVector(row.embedding);
@@ -400,7 +463,9 @@ class EmbeddingService {
    */
   getStats() {
     const totalBooks = db.prepare('SELECT COUNT(*) as count FROM books').get().count;
-    const embedded = db.prepare('SELECT COUNT(*) as count FROM book_embeddings').get().count;
+    const embedded = db.prepare(
+      'SELECT COUNT(*) as count FROM book_embeddings WHERE model_name = ?'
+    ).get(EMBEDDING_KEY).count;
 
     return {
       totalBooks,
@@ -414,3 +479,4 @@ class EmbeddingService {
 }
 
 module.exports = new EmbeddingService();
+module.exports.EMBEDDING_KEY = EMBEDDING_KEY;

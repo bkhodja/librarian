@@ -7,6 +7,7 @@ const processorPool = require('./bookProcessorPool');
 const metadataEnricher = require('./bookMetadataEnricher');
 const quality = require('./metadataQuality');
 const aiTagger = require('./aiTagger');
+const embeddingService = require('./embeddingService');
 
 const THUMBNAIL_BATCH_SIZE = Number(process.env.THUMBNAIL_BATCH_SIZE) || 25;
 const THUMBNAIL_CONCURRENCY = Number(process.env.THUMBNAIL_CONCURRENCY) || 3;
@@ -17,6 +18,7 @@ const ADULT_BATCH_SIZE = Number(process.env.ADULT_BATCH_SIZE) || 20;
 const TAG_BATCH_SIZE = Number(process.env.TAG_BATCH_SIZE) || 20;
 const INDEX_BATCH_SIZE = Number(process.env.INDEX_BATCH_SIZE) || 10;
 const HASH_BATCH_SIZE = Number(process.env.HASH_BATCH_SIZE) || 50;
+const EMBED_BATCH_SIZE = Number(process.env.EMBED_BATCH_SIZE) || 100;
 const OCR_BACKGROUND = (process.env.OCR_BACKGROUND || 'on').toLowerCase() !== 'off';
 const OCR_NICE = Number(process.env.OCR_NICE) || 15;
 // A 3000-page scan is under two hours at the measured two seconds a page.
@@ -48,6 +50,8 @@ class BackgroundTaskManager extends EventEmitter {
     this.isOcring = false;
     this.isHashing = false;
     this.hashFailed = new Set();
+    this.isEmbedding = false;
+    this.isCheckingEmbeddings = false;
     this.warnedNoOllama = false;
     // Books whose text could not be read this run. Retried after a restart,
     // which is soon enough for a file that has since been fixed.
@@ -336,6 +340,21 @@ class BackgroundTaskManager extends EventEmitter {
 
     setTimeout(() => this.hashUnhashedBooks(), 20000);
 
+    // Embed books for semantic search and Similar Books. Until this sweep
+    // existed, embeddings were made once by hand; 4,500 books added since had
+    // none, and searches could not find them.
+    this.embedInterval = setInterval(() => {
+      this.embedPendingBooks();
+    }, 120000);
+
+    setTimeout(() => this.embedPendingBooks(), 60000);
+
+    // Re-embed books whose title, tags or description changed after they
+    // were embedded. Hourly: those changes are rare and none is urgent.
+    this.embedCheckInterval = setInterval(() => {
+      this.checkEmbeddings();
+    }, 3600000);
+
     // Scanned books, one at a time, in a low-priority child process. Days of
     // work for a large library, so it only starts once the text books are
     // done and never gets in the way of anything interactive.
@@ -345,6 +364,64 @@ class BackgroundTaskManager extends EventEmitter {
       }, 120000);
 
       setTimeout(() => this.ocrScannedBooks(), 90000);
+    }
+  }
+
+  /**
+   * Embed a batch of books with no embedding (or an outdated one), and keep
+   * going while there are more. A few milliseconds a book, so a whole
+   * library takes a minute or two.
+   */
+  async embedPendingBooks() {
+    if (this.isEmbedding) return;
+    this.isEmbedding = true;
+
+    try {
+      const batch = embeddingService.pendingBooks(EMBED_BATCH_SIZE);
+      if (batch.length === 0) return;
+
+      let embedded = 0;
+      let failed = 0;
+      for (const book of batch) {
+        try {
+          await embeddingService.embedBook(book.id);
+          embedded++;
+        } catch (error) {
+          failed++;
+          console.error(`   Could not embed book ${book.id}: ${error.message}`);
+        }
+      }
+
+      const remaining = embeddingService.countPending();
+      console.log(`🧠 Embedded ${embedded} book(s)` +
+                  (failed ? `, ${failed} failed` : '') +
+                  (remaining ? `; ${remaining} to go` : ''));
+
+      // A book that fails stays pending; only carry on if this batch made
+      // progress, or a broken model would spin here.
+      if (remaining > 0 && embedded > 0) {
+        setTimeout(() => this.embedPendingBooks(), 1000);
+      }
+    } catch (error) {
+      console.error('Embedding pass failed:', error.message);
+    } finally {
+      this.isEmbedding = false;
+    }
+  }
+
+  async checkEmbeddings() {
+    if (this.isCheckingEmbeddings || this.isEmbedding) return;
+    this.isCheckingEmbeddings = true;
+
+    try {
+      const { updated } = await embeddingService.checkAllBooks();
+      if (updated > 0) {
+        console.log(`🧠 Re-embedded ${updated} book(s) whose title, tags or description changed`);
+      }
+    } catch (error) {
+      console.error('Embedding check failed:', error.message);
+    } finally {
+      this.isCheckingEmbeddings = false;
     }
   }
 
@@ -947,6 +1024,8 @@ class BackgroundTaskManager extends EventEmitter {
     if (this.indexInterval) clearInterval(this.indexInterval);
     if (this.ocrInterval) clearInterval(this.ocrInterval);
     if (this.hashInterval) clearInterval(this.hashInterval);
+    if (this.embedInterval) clearInterval(this.embedInterval);
+    if (this.embedCheckInterval) clearInterval(this.embedCheckInterval);
 
     await processorPool.shutdown();
 
