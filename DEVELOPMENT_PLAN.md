@@ -91,11 +91,6 @@
    - Daily/weekly/monthly reading stats
    - Books completed tracking
    - Reading velocity and patterns
-3. **Embeddings for the rest of the library** — only 826 of 5,320 books
-   have one: they were backfilled once in Phase 15 and nothing embeds new
-   books, so semantic search and Similar Books miss everything added since.
-   A background sweep like the tagging one; re-embedding the 826 at the
-   same time makes them match the new library's query vectors exactly
 
 ### 📝 Known Issues
 
@@ -138,7 +133,7 @@
 
 ### AI & Search
 
-- **Local Embeddings:** @huggingface/transformers (all-MiniLM-L6-v2), model in `data/models/`
+- **Local Embeddings:** @huggingface/transformers (paraphrase-multilingual-MiniLM-L12-v2), model in `data/models/`
 - **Local Models:** Ollama (`qwen3.6:35b-a3b`, `gemma3:4b`) for summaries, Ask, compare, tags
 - **Full-Text Search:** SQLite FTS5
 - **Vector Search:** Brute-force cosine similarity in SQLite
@@ -957,6 +952,25 @@ Bibliotheka/
 ---
 
 ## Changelog
+
+### 2026-11-04 - Embeddings for the Whole Library
+
+- **A background sweep embeds every book.** Only 826 of 5,320 had an
+  embedding — made once by hand in Phase 15 — so semantic search and
+  Similar Books could not see anything added since. New books are embedded
+  within minutes (after their tags, or a day later if tagging never comes);
+  an hourly pass re-embeds books whose title, tags or description changed.
+  The whole library takes under 20 seconds.
+- **Multilingual model.** `all-MiniLM-L6-v2` is English-only and most of
+  the library is Russian. Scored by how often a book's five nearest
+  neighbours share a tag: 54.8% → 61.0% overall, Russian 43.9% → 57.1%,
+  English 72.4% → 67.9%. Russian queries find English books and back.
+- **Embedded from title, author, tags and description.** The text used to
+  read a `content` column that no longer exists, so it was title-only by
+  accident. Adding page text was measured and made neighbours worse with
+  both models (front matter), so it stays out.
+- Each vector records the model and recipe that made it; searches compare
+  only like with like, and a change to either re-embeds the library.
 
 ### 2026-11-04 - Dependencies
 

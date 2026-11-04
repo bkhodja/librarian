@@ -36,8 +36,10 @@ There is no account, no per-token cost, and nothing leaves the laptop.
   contains
 - 📝 **Summaries** and **metadata repair** — run-together filenames turned back
   into titles, missing authors read off the front matter
-- 🧠 **Semantic search** over local embeddings (all-MiniLM-L6-v2, fetched
-  once into `data/models/` on first use)
+- 🧠 **Semantic search** and **Similar Books** over local, multilingual
+  embeddings — a Russian query finds English books and back. Every book is
+  embedded in the background; the model (~145MB) is fetched once into
+  `data/models/` on first use
 
 Setup:
 
