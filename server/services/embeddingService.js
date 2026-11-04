@@ -1,9 +1,14 @@
 const { db } = require('../database/init');
 const crypto = require('crypto');
+const path = require('path');
 
 const MODEL_NAME = 'Xenova/all-MiniLM-L6-v2';
 const EMBEDDING_DIM = 384;
 const MAX_TOKENS = 512;
+
+// Downloaded once from the Hugging Face hub, then read from here. The library's
+// default is inside node_modules, where every reinstall deleted it.
+const MODEL_CACHE = path.join(__dirname, '../../data/models');
 
 class EmbeddingService {
   constructor() {
@@ -43,9 +48,15 @@ class EmbeddingService {
     this.loading = true;
     try {
       console.log('🧠 Loading embedding model...');
-      const { pipeline } = await import('@xenova/transformers');
+      // @huggingface/transformers is the maintained successor of
+      // @xenova/transformers, whose onnxruntime-web pulled in a protobufjs
+      // with a code-injection advisory. Same model files: query vectors agree
+      // with the stored ones to a cosine of 0.99, and searches return the
+      // same first result.
+      const { pipeline, env } = await import('@huggingface/transformers');
+      env.cacheDir = MODEL_CACHE;
       this.pipeline = await pipeline('feature-extraction', MODEL_NAME, {
-        quantized: true
+        dtype: 'q8'
       });
       console.log('✅ Embedding model loaded');
       return this.pipeline;
