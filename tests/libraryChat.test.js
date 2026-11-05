@@ -63,6 +63,18 @@ describe('collapseCopies', () => {
     expect(cards[0].copies).toEqual([newer]);
   });
 
+  test('a title with the authors in front is the same book; a short title inside another is not', () => {
+    const plain = addBook('Postgres. Первое знакомство', { year: 2026 });
+    const prefixed = addBook('Лузанов П , Рогов Е , Левшин И Postgres Первое знакомство', { year: 2025 });
+    const generic = addBook('PostgreSQL');
+    const deep = addBook('PostgreSQL изнутри');
+
+    const cards = chat.collapseCopies(chat.bookCards([prefixed, plain, generic, deep]));
+
+    expect(cards.map((c) => c.id)).toEqual([plain, generic, deep]);
+    expect(cards[0].copies).toEqual([prefixed]);
+  });
+
   test('identical files are one book whatever their titles', () => {
     const a = addBook('scan_0001', { hash: 'abc' });
     const b = addBook('Clean Code', { hash: 'abc' });

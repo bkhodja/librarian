@@ -276,7 +276,8 @@ class LibraryChat {
     const groups = [];
     for (const card of cards) {
       const probe = { title: card.title, author: card.author, file_hash: card.file_hash, file_size: card.file_size, page_count: card.pages };
-      const group = groups.find((g) => duplicateDetector.compare({ ...g.probe }, { ...probe }));
+      const group = groups.find((g) =>
+        duplicateDetector.compare({ ...g.probe }, { ...probe }) || this.sameTitleWithin(g.probe.title, probe.title));
       if (group) group.cards.push(card);
       else groups.push({ probe, cards: [card] });
     }
@@ -289,6 +290,20 @@ class LibraryChat {
       )[0];
       return { ...keep, copies: copies.filter((c) => c !== keep).map((c) => c.id) };
     });
+  }
+
+  /**
+   * One title inside the other: "Лузанов П, Рогов Е Postgres Первое знакомство"
+   * is "Postgres. Первое знакомство" with the authors in front, which the
+   * duplicate finder (comparing whole titles) does not catch. Short titles
+   * never match this way: "PostgreSQL" is inside half the shelf.
+   */
+  sameTitleWithin(a, b) {
+    const [shorter, longer] = [a, b]
+      .map((t) => duplicateDetector.normalizeTitle(t))
+      .sort((x, y) => x.length - y.length);
+    if (shorter.length < 15 || !shorter.includes(' ')) return false;
+    return ` ${longer} `.includes(` ${shorter} `);
   }
 
   // ---- Step 3: answer ------------------------------------------------------

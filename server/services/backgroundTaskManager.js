@@ -441,7 +441,7 @@ class BackgroundTaskManager extends EventEmitter {
         } catch (error) {
           // Ollama is down: stop here, and say so once rather than every pass.
           if (!this.warnedProfileOllama) {
-            console.warn(`📖 Book profiling is idle: ${error.message}`);
+            console.warn(`🎓 Book profiling is idle: ${error.message}`);
             this.warnedProfileOllama = true;
           }
           return;
@@ -450,7 +450,7 @@ class BackgroundTaskManager extends EventEmitter {
       this.warnedProfileOllama = false;
 
       const remaining = bookProfiler.countPending();
-      console.log(`📖 Profiled ${profiled} book(s)` +
+      console.log(`🎓 Profiled ${profiled} book(s)` +
                   (unusable ? `, ${unusable} without a usable profile` : '') +
                   (remaining ? `; ${remaining} to go` : ''));
 
