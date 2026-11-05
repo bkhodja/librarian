@@ -136,6 +136,106 @@ class OllamaClient {
     }
   }
 
+  /**
+   * One chat turn over a messages array, answered whole. With `format` (a
+   * JSON schema) the reply is parsed; without it the text comes back.
+   */
+  async chat(messages, options = {}) {
+    if (!(await this.isAvailable())) return null;
+
+    try {
+      const data = await this.request('/api/chat', {
+        model: options.model || this.model,
+        messages,
+        stream: false,
+        format: options.format,
+        think: false,
+        options: {
+          temperature: options.temperature ?? 0,
+          num_predict: options.maxTokens ?? 512,
+          ...options.modelOptions
+        }
+      }, { timeout: options.timeout });
+
+      const content = data.message?.content || '';
+      return options.format ? JSON.parse(content) : content.trim() || null;
+    } catch (error) {
+      console.error(`Ollama chat failed: ${error.message}`);
+      return null;
+    }
+  }
+
+  /**
+   * A chat turn streamed token by token. Ollama sends one JSON object per
+   * line; `onToken` sees each piece of text as it arrives. The timeout is an
+   * idle timeout — a long answer is fine as long as it keeps coming.
+   *
+   * Returns the whole text, or null when Ollama is unreachable or fails.
+   * Aborting through `options.signal` returns what arrived so far.
+   */
+  async chatStream(messages, options = {}) {
+    if (!(await this.isAvailable())) return null;
+
+    const controller = new AbortController();
+    const idle = options.timeout ?? TIMEOUT_MS;
+    let timer = setTimeout(() => controller.abort(), idle);
+    const onAbort = () => controller.abort();
+    options.signal?.addEventListener('abort', onAbort);
+
+    let text = '';
+    try {
+      const response = await fetch(`${this.host}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: options.model || this.model,
+          messages,
+          stream: true,
+          think: false,
+          options: {
+            temperature: options.temperature ?? 0.3,
+            num_predict: options.maxTokens ?? 1500,
+            ...options.modelOptions
+          }
+        }),
+        signal: controller.signal
+      });
+
+      if (!response.ok) {
+        throw new Error(`Ollama responded ${response.status}: ${await response.text()}`);
+      }
+
+      const decoder = new TextDecoder();
+      let buffered = '';
+      for await (const chunk of response.body) {
+        clearTimeout(timer);
+        timer = setTimeout(() => controller.abort(), idle);
+
+        buffered += decoder.decode(chunk, { stream: true });
+        const lines = buffered.split('\n');
+        buffered = lines.pop();
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          const part = JSON.parse(line);
+          if (part.error) throw new Error(part.error);
+          const piece = part.message?.content;
+          if (piece) {
+            text += piece;
+            options.onToken?.(piece);
+          }
+        }
+      }
+      return text;
+    } catch (error) {
+      if (options.signal?.aborted) return text;
+      console.error(`Ollama chatStream failed: ${error.message}`);
+      return null;
+    } finally {
+      clearTimeout(timer);
+      options.signal?.removeEventListener('abort', onAbort);
+    }
+  }
+
   async embed(text, options = {}) {
     if (!(await this.isAvailable())) return null;
 
