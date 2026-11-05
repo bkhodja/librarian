@@ -187,14 +187,15 @@ class BookProfiler {
 
   /**
    * Books with no profile from the current model and prompt. Books being
-   * read come first, then work subjects, then the rest.
+   * read come first, then work subjects, then the rest. Magazines have no
+   * level to speak of and are not profiled.
    */
   pendingBooks(limit = -1) {
     const leisure = LEISURE_TAGS.map(() => '?').join(', ');
     return db.prepare(`
       SELECT b.id FROM books b
       LEFT JOIN book_profiles p ON p.book_id = b.id
-      WHERE p.book_id IS NULL OR p.model_name != ?
+      WHERE b.kind = 'book' AND (p.book_id IS NULL OR p.model_name != ?)
       ORDER BY
         EXISTS (SELECT 1 FROM reading_progress rp WHERE rp.book_id = b.id) DESC,
         EXISTS (
@@ -210,7 +211,7 @@ class BookProfiler {
     return db.prepare(`
       SELECT COUNT(*) AS n FROM books b
       LEFT JOIN book_profiles p ON p.book_id = b.id
-      WHERE p.book_id IS NULL OR p.model_name != ?
+      WHERE b.kind = 'book' AND (p.book_id IS NULL OR p.model_name != ?)
     `).get(PROFILE_KEY).n;
   }
 

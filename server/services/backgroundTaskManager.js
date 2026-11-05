@@ -9,6 +9,7 @@ const quality = require('./metadataQuality');
 const aiTagger = require('./aiTagger');
 const embeddingService = require('./embeddingService');
 const bookProfiler = require('./bookProfiler');
+const { ROOTS, rootFor, kindForPath } = require('./libraryFolders');
 
 const THUMBNAIL_BATCH_SIZE = Number(process.env.THUMBNAIL_BATCH_SIZE) || 25;
 const THUMBNAIL_CONCURRENCY = Number(process.env.THUMBNAIL_CONCURRENCY) || 3;
@@ -35,9 +36,10 @@ const EventEmitter = require('events');
 class BackgroundTaskManager extends EventEmitter {
   constructor() {
     super();
-    // path.resolve drops a trailing slash, so a folder given as ".../Books/"
-    // still yields file paths that match the ones already in the database.
-    this.booksFolder = path.resolve(process.env.BOOKS_FOLDER || '/Volumes/Storage/Books');
+    // Books and magazines are both watched; libraryFolders resolves each
+    // path, so a folder given as ".../Books/" still yields file paths that
+    // match the ones already in the database.
+    this.roots = ROOTS;
     this.fileWatcher = null;
     this.processingQueue = new Set();
     this.activeJobs = 0;
@@ -84,7 +86,7 @@ class BackgroundTaskManager extends EventEmitter {
   }
 
   async performInitialScan() {
-    console.log('📚 Scanning the books folder for new files...');
+    console.log('📚 Scanning the books and magazines folders for new files...');
     try {
       const newBooks = await this.scanForNewBooks();
       if (newBooks.length > 0) {
@@ -113,7 +115,11 @@ class BackgroundTaskManager extends EventEmitter {
       );
 
       const newBooks = [];
-      await this.scanDirectory(this.booksFolder, existingPaths, newBooks);
+      for (const root of this.roots) {
+        // A library with no magazines folder is fine; say nothing about it.
+        if (!(await this.fileExists(root.folder))) continue;
+        await this.scanDirectory(root.folder, existingPaths, newBooks);
+      }
       return newBooks;
     } catch (error) {
       console.error('Error scanning for new books:', error);
@@ -187,7 +193,7 @@ class BackgroundTaskManager extends EventEmitter {
     console.log('👁️  Setting up file watcher...');
 
     // Initialize watcher
-    this.fileWatcher = chokidar.watch(this.booksFolder, {
+    this.fileWatcher = chokidar.watch(this.roots.map((root) => root.folder), {
       persistent: true,
       ignoreInitial: true,
       followSymlinks: false,
@@ -202,7 +208,7 @@ class BackgroundTaskManager extends EventEmitter {
     this.fileWatcher.on('add', async (filePath) => {
       const ext = path.extname(filePath).toLowerCase();
       if (ext === '.pdf' || ext === '.epub') {
-        console.log(`📖 New book detected: ${path.basename(filePath)}`);
+        console.log(`${kindForPath(filePath) === 'magazine' ? '📰 New magazine' : '📖 New book'} detected: ${path.basename(filePath)}`);
 
         // A rejection here is unhandled and, on current Node, fatal. The
         // file can legitimately be gone by now — a download manager that
@@ -242,8 +248,9 @@ class BackgroundTaskManager extends EventEmitter {
         // When the external drive unmounts, every file vanishes at once and
         // this handler fires for each of them. Deleting the rows would empty
         // the library; the books are still there, just not reachable.
-        if (!(await this.fileExists(this.booksFolder))) {
-          console.warn(`Ignoring removal of ${path.basename(filePath)}: books folder is not mounted`);
+        const root = rootFor(filePath);
+        if (!root || !(await this.fileExists(root.folder))) {
+          console.warn(`Ignoring removal of ${path.basename(filePath)}: its folder is not mounted`);
           return;
         }
 
@@ -671,6 +678,7 @@ class BackgroundTaskManager extends EventEmitter {
       const candidates = db.prepare(`
         SELECT id, title, author, isbn FROM books
         WHERE isbn IS NOT NULL
+          AND kind = 'book'
           AND needs_review = 0
           AND metadata_source IS NULL
       `).all();

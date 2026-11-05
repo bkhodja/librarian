@@ -5,9 +5,7 @@ const fs = require('fs').promises;
 const { db } = require('../database/init');
 const pdfProcessor = require('../services/pdfProcessor');
 const fileWatcher = require('../services/fileWatcher');
-
-// Configuration - UPDATE THIS to your actual Books folder path
-const BOOKS_FOLDER = process.env.BOOKS_FOLDER || '/Volumes/Storage/Books';
+const { BOOKS_FOLDER, ROOTS } = require('../services/libraryFolders');
 
 // Recursively scan directory for PDF files
 async function scanDirectory(dirPath) {
@@ -58,8 +56,13 @@ router.post('/', async (req, res) => {
       });
     }
 
-    // Scan for PDF files
-    const pdfFiles = await scanDirectory(BOOKS_FOLDER);
+    // Scan for PDF files, books and magazines alike
+    const pdfFiles = [];
+    for (const root of ROOTS) {
+      if (await fs.access(root.folder).then(() => true, () => false)) {
+        pdfFiles.push(...await scanDirectory(root.folder));
+      }
+    }
     console.log(`Found ${pdfFiles.length} PDF files`);
 
     // Get existing files from database
@@ -163,6 +166,10 @@ router.get('/config', async (req, res) => {
   res.json({
     booksFolder: BOOKS_FOLDER,
     exists,
+    folders: await Promise.all(ROOTS.map(async (root) => ({
+      ...root,
+      exists: await fs.access(root.folder).then(() => true, () => false)
+    }))),
     watcherStatus: fileWatcher.getStatus()
   });
 });

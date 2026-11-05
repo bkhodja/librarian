@@ -113,10 +113,10 @@ app.use(express.urlencoded({ extended: true }));
 // Serve static files from public directory
 app.use(express.static(path.join(__dirname, '../public')));
 
-// Serve PDF and ePUB files from the books folder, by absolute path
-// (/pdf/Volumes/Storage/Books/x.pdf). Anything outside it is refused: this
-// route once served any file on the disk to whoever asked.
-const BOOKS_FOLDER = path.resolve(process.env.BOOKS_FOLDER || '/Volumes/Storage/Books');
+// Serve PDF and ePUB files from the books and magazines folders, by absolute
+// path (/pdf/Volumes/Storage/Books/x.pdf). Anything outside them is refused:
+// this route once served any file on the disk to whoever asked.
+const { ROOTS } = require('./services/libraryFolders');
 const BOOK_TYPES = { '.pdf': 'application/pdf', '.epub': 'application/epub+zip' };
 
 app.use('/pdf', (req, res, next) => {
@@ -133,7 +133,14 @@ app.use('/pdf', (req, res, next) => {
   try {
     realFile = fs.realpathSync(path.resolve(decodeURIComponent(req.path)));
     contentType = BOOK_TYPES[path.extname(realFile).toLowerCase()];
-    if (!contentType || !realFile.startsWith(fs.realpathSync(BOOKS_FOLDER) + path.sep)) {
+    const inLibrary = ROOTS.some((root) => {
+      try {
+        return realFile.startsWith(fs.realpathSync(root.folder) + path.sep);
+      } catch {
+        return false; // that folder is missing or unmounted
+      }
+    });
+    if (!contentType || !inLibrary) {
       return res.status(404).json({ error: 'File not found' });
     }
   } catch {

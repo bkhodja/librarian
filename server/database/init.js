@@ -369,11 +369,22 @@ const runMigrations = () => {
     db.exec('CREATE INDEX IF NOT EXISTS idx_books_file_hash ON books(file_hash)');
     console.log('✅ Added file_hash column to books table');
   }
+
+  // Books and magazines share the table; the folder a file is in says which.
+  if (!columns.some(col => col.name === 'kind')) {
+    db.exec("ALTER TABLE books ADD COLUMN kind TEXT NOT NULL DEFAULT 'book'");
+    db.exec('ALTER TABLE books ADD COLUMN series TEXT');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_books_kind ON books(kind, series)');
+    console.log('✅ Added kind and series columns to books table');
+  }
 };
 
 // Initialize tables
 createTables();
 runMigrations();
+
+const reclassified = require('../services/libraryFolders').installClassifier(db);
+if (reclassified > 0) console.log(`✅ Classified ${reclassified} item(s) as book or magazine by folder`);
 
 // Helper functions
 const getStats = () => {

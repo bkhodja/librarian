@@ -3,12 +3,13 @@ const path = require('path');
 const EventEmitter = require('events');
 const { db } = require('../database/init');
 const pdfProcessor = require('./pdfProcessor');
+const { ROOTS } = require('./libraryFolders');
 
 class FileWatcher extends EventEmitter {
   constructor() {
     super();
     this.watcher = null;
-    this.booksFolder = process.env.BOOKS_FOLDER || '/Volumes/Storage/Books';
+    this.folders = ROOTS.map((root) => root.folder);
     this.isWatching = false;
     this.processingQueue = [];
     this.isProcessing = false;
@@ -23,10 +24,10 @@ class FileWatcher extends EventEmitter {
       return;
     }
 
-    console.log(`Starting file watcher for: ${this.booksFolder}`);
+    console.log(`Starting file watcher for: ${this.folders.join(', ')}`);
 
     // Initialize watcher
-    this.watcher = chokidar.watch(this.booksFolder, {
+    this.watcher = chokidar.watch(this.folders, {
       persistent: true,
       ignoreInitial: true, // Don't trigger for existing files on startup
       followSymlinks: false,
@@ -226,7 +227,7 @@ class FileWatcher extends EventEmitter {
   getStatus() {
     return {
       isWatching: this.isWatching,
-      booksFolder: this.booksFolder,
+      folders: this.folders,
       queueLength: this.processingQueue.length,
       isProcessing: this.isProcessing
     };

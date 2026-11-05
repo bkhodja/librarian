@@ -17,6 +17,10 @@ class BookMetadataEnricher {
       throw new Error(`Book with ID ${bookId} not found`);
     }
 
+    // Open Library and Google Books catalogue books. Asked about an issue of
+    // a magazine they answer with whichever book shares a word of its title.
+    if (book.kind === 'magazine') return null;
+
     console.log(`Enriching metadata for: ${book.title || book.file_path}`);
 
     // Check cache first
