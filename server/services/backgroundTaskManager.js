@@ -8,6 +8,7 @@ const metadataEnricher = require('./bookMetadataEnricher');
 const quality = require('./metadataQuality');
 const aiTagger = require('./aiTagger');
 const embeddingService = require('./embeddingService');
+const bookProfiler = require('./bookProfiler');
 
 const THUMBNAIL_BATCH_SIZE = Number(process.env.THUMBNAIL_BATCH_SIZE) || 25;
 const THUMBNAIL_CONCURRENCY = Number(process.env.THUMBNAIL_CONCURRENCY) || 3;
@@ -19,6 +20,7 @@ const TAG_BATCH_SIZE = Number(process.env.TAG_BATCH_SIZE) || 20;
 const INDEX_BATCH_SIZE = Number(process.env.INDEX_BATCH_SIZE) || 10;
 const HASH_BATCH_SIZE = Number(process.env.HASH_BATCH_SIZE) || 50;
 const EMBED_BATCH_SIZE = Number(process.env.EMBED_BATCH_SIZE) || 100;
+const PROFILE_BATCH_SIZE = Number(process.env.PROFILE_BATCH_SIZE) || 20;
 const OCR_BACKGROUND = (process.env.OCR_BACKGROUND || 'on').toLowerCase() !== 'off';
 const OCR_NICE = Number(process.env.OCR_NICE) || 15;
 // A 3000-page scan is under two hours at the measured two seconds a page.
@@ -52,6 +54,8 @@ class BackgroundTaskManager extends EventEmitter {
     this.hashFailed = new Set();
     this.isEmbedding = false;
     this.isCheckingEmbeddings = false;
+    this.isProfiling = false;
+    this.warnedProfileOllama = false;
     this.warnedNoOllama = false;
     // Books whose text could not be read this run. Retried after a restart,
     // which is soon enough for a file that has since been fixed.
@@ -355,6 +359,15 @@ class BackgroundTaskManager extends EventEmitter {
       this.checkEmbeddings();
     }, 3600000);
 
+    // Profile each book (level, audience, prerequisites) for the library
+    // chat's reading paths. Hours of model time for the whole library, so it
+    // runs a batch at a time and gives way to tagging.
+    this.profileInterval = setInterval(() => {
+      this.profilePendingBooks();
+    }, 300000);
+
+    setTimeout(() => this.profilePendingBooks(), 90000);
+
     // Scanned books, one at a time, in a low-priority child process. Days of
     // work for a large library, so it only starts once the text books are
     // done and never gets in the way of anything interactive.
@@ -406,6 +419,50 @@ class BackgroundTaskManager extends EventEmitter {
       console.error('Embedding pass failed:', error.message);
     } finally {
       this.isEmbedding = false;
+    }
+  }
+
+  async profilePendingBooks() {
+    // Tagging shares the model; new books get their tags first.
+    if (this.isProfiling || this.isTagging) return;
+    this.isProfiling = true;
+
+    try {
+      const batch = bookProfiler.pendingBooks(PROFILE_BATCH_SIZE);
+      if (batch.length === 0) return;
+
+      let profiled = 0;
+      let unusable = 0;
+      for (const book of batch) {
+        if (this.isTagging) break;
+        try {
+          if (await bookProfiler.profileBook(book.id)) profiled++;
+          else unusable++;
+        } catch (error) {
+          // Ollama is down: stop here, and say so once rather than every pass.
+          if (!this.warnedProfileOllama) {
+            console.warn(`📖 Book profiling is idle: ${error.message}`);
+            this.warnedProfileOllama = true;
+          }
+          return;
+        }
+      }
+      this.warnedProfileOllama = false;
+
+      const remaining = bookProfiler.countPending();
+      console.log(`📖 Profiled ${profiled} book(s)` +
+                  (unusable ? `, ${unusable} without a usable profile` : '') +
+                  (remaining ? `; ${remaining} to go` : ''));
+
+      // Books without a usable profile are recorded, so every batch makes
+      // progress; keep going rather than waiting out the interval.
+      if (remaining > 0 && profiled + unusable > 0) {
+        setTimeout(() => this.profilePendingBooks(), 1000);
+      }
+    } catch (error) {
+      console.error('Profiling pass failed:', error.message);
+    } finally {
+      this.isProfiling = false;
     }
   }
 
@@ -1026,6 +1083,7 @@ class BackgroundTaskManager extends EventEmitter {
     if (this.hashInterval) clearInterval(this.hashInterval);
     if (this.embedInterval) clearInterval(this.embedInterval);
     if (this.embedCheckInterval) clearInterval(this.embedCheckInterval);
+    if (this.profileInterval) clearInterval(this.profileInterval);
 
     await processorPool.shutdown();
 
