@@ -7,6 +7,7 @@ import BulkActionsModal from './components/BulkActionsModal';
 import CollectionsSidebar from './components/CollectionsSidebar';
 import FullTextSearch from './components/FullTextSearch';
 import CrossBookCompare from './components/CrossBookCompare';
+import LibraryChat from './components/LibraryChat';
 import ReadingProgress from './components/ReadingProgress';
 import ReadingStatsDashboard from './components/ReadingStatsDashboard';
 import PDFViewer from './components/PDFViewer';
@@ -82,6 +83,26 @@ function App() {
 
   // Reading stats state
   const [showReadingStats, setShowReadingStats] = useState(false);
+
+  // Library chat panel
+  const [showLibraryChat, setShowLibraryChat] = useState(false);
+
+  // A book the chat recommends may be outside the current filters, so it is
+  // fetched when it is not in the grid.
+  const openBookById = async (id) => {
+    let book = books.find((b) => b.id === id);
+    if (!book) {
+      try {
+        const response = await fetch(`http://localhost:3001/api/books/${id}`);
+        if (!response.ok) return;
+        book = await response.json();
+      } catch {
+        return;
+      }
+    }
+    setSelectedBook(book);
+    setIsModalOpen(true);
+  };
 
   // PDF Viewer state
   const [pdfViewerOpen, setPdfViewerOpen] = useState(false);
@@ -858,6 +879,17 @@ function App() {
                 </svg>
               </button>
 
+              {/* Library chat toggle */}
+              <button
+                onClick={() => setShowLibraryChat(!showLibraryChat)}
+                className={showLibraryChat ? 'flex h-8 w-8 items-center justify-center rounded-md bg-accent-soft text-accent-ink transition-colors' : 'flex h-8 w-8 items-center justify-center rounded-md text-ink-muted transition-colors hover:bg-surface-hover hover:text-ink'}
+                title={showLibraryChat ? 'Close the library chat' : 'Chat with your library: what to read, and in what order'}
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                </svg>
+              </button>
+
               {/* Reading stats toggle */}
               <button
                 onClick={() => setShowReadingStats(!showReadingStats)}
@@ -1111,6 +1143,13 @@ function App() {
           </div>
         )}
       </main>
+
+      {/* Library chat: stays mounted, so closing it keeps the conversation */}
+      <LibraryChat
+        isOpen={showLibraryChat}
+        onClose={() => setShowLibraryChat(false)}
+        onOpenBook={openBookById}
+      />
 
       {/* Book Detail Modal */}
       <BookDetailModal
