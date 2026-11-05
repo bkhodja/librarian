@@ -1034,6 +1034,10 @@ Bibliotheka/
   section. Magazines skip the online book catalogues and difficulty profiles.
 - Switching sections exposed a race in the book list (a slow, earlier request
   could overwrite a later one); fixed.
+- **Delete** from the grid (select one or many, then Delete) or from a book's
+  details, behind a confirmation that lists the titles and covers. Files go
+  to the Trash, as before; the delete was only reachable through a Bulk
+  Actions dropdown and a browser prompt.
 
 ### 2026-11-04 - Phase 17 - Library Chat
 
