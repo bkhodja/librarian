@@ -196,12 +196,19 @@ const BookCard = ({
         </h3>
 
         <div className="flex items-baseline justify-between gap-2">
-          <p
-            className={`line-clamp-1 text-xs ${book.author ? 'text-ink-muted' : 'text-ink-faint italic'}`}
-            title={book.author || undefined}
-          >
-            {book.author || 'No author'}
-          </p>
+          {/* An issue rarely has an author; which magazine it is says more. */}
+          {book.kind === 'magazine' && !book.author ? (
+            <p className="line-clamp-1 text-xs text-ink-muted" title={book.series || undefined}>
+              {book.series || 'Magazine'}
+            </p>
+          ) : (
+            <p
+              className={`line-clamp-1 text-xs ${book.author ? 'text-ink-muted' : 'text-ink-faint italic'}`}
+              title={book.author || undefined}
+            >
+              {book.author || 'No author'}
+            </p>
+          )}
           {book.publication_year && (
             <span className="shrink-0 text-2xs tabular-nums text-ink-faint">
               {book.publication_year}

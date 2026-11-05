@@ -8,6 +8,7 @@ import CollectionsSidebar from './components/CollectionsSidebar';
 import FullTextSearch from './components/FullTextSearch';
 import CrossBookCompare from './components/CrossBookCompare';
 import LibraryChat from './components/LibraryChat';
+import { compareIssues } from './utils/issueOrder';
 import ReadingProgress from './components/ReadingProgress';
 import ReadingStatsDashboard from './components/ReadingStatsDashboard';
 import PDFViewer from './components/PDFViewer';
@@ -70,6 +71,14 @@ function App() {
 
   // Collections state
   const [selectedCollection, setSelectedCollection] = useState(null);
+  // Books or magazines. The sidebar's views (all, recently added, currently
+  // reading) apply within a section; a stored collection holds either.
+  const [section, setSection] = useState('book');
+  const loadTicket = React.useRef(0);
+  const isStoredCollection = typeof selectedCollection === 'number';
+  const selectedSeries = typeof selectedCollection === 'string' && selectedCollection.startsWith('series:')
+    ? selectedCollection.slice('series:'.length)
+    : null;
   const [collectionBooks, setCollectionBooks] = useState([]);
 
   // Multi-select states
@@ -316,6 +325,11 @@ function App() {
       );
     }
 
+    // A magazine's issues read newest first, by the date in each title.
+    if (selectedSeries) {
+      return [...filtered].sort(compareIssues);
+    }
+
     return filtered;
   }, [books, searchQuery, selectedTag, selectedAuthor, selectedFileType, selectedLanguage, sortBy, sortOrder, userPreferences, selectedCollection, askConstraints]);
 
@@ -380,7 +394,7 @@ function App() {
   // A new filter or sort should start from the top again.
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
-  }, [searchQuery, selectedTag, selectedAuthor, selectedFileType, selectedLanguage, sortBy, sortOrder, selectedCollection]);
+  }, [searchQuery, selectedTag, selectedAuthor, selectedFileType, selectedLanguage, sortBy, sortOrder, selectedCollection, section]);
 
   // Extend the rendered slice when the sentinel below the grid comes into view.
   useEffect(() => {
@@ -451,7 +465,7 @@ function App() {
     return () => {
       clearInterval(refreshInterval);
     };
-  }, [selectedCollection]);
+  }, [selectedCollection, section]);
 
   const handleScanLibrary = async () => {
     setLoading(true);
@@ -583,19 +597,26 @@ function App() {
   };
 
   const loadBooks = async () => {
+    // Only the latest load may fill the grid. Switching from books to
+    // magazines started a 5,000-book request and then a 200-item one; the
+    // big one finished last and put the books back.
+    const ticket = ++loadTicket.current;
+    const stale = () => ticket !== loadTicket.current;
     try {
       // Handle special "currently-reading" collection
       if (selectedCollection === 'currently-reading') {
         // First get all books that have reading progress
         const progressResponse = await fetch('http://localhost:3001/api/progress/reading/all?status=reading');
         const progressData = await progressResponse.json();
+        if (stale()) return;
 
         // The API returns books directly with progress data, just use them
         if (progressData.length > 0) {
           // Fetch full book details for the currently reading books
           const bookIds = progressData.map(item => item.id);
-          const booksResponse = await fetch(`http://localhost:3001/api/books?limit=${LIBRARY_FETCH_LIMIT}`);
+          const booksResponse = await fetch(`http://localhost:3001/api/books?limit=${LIBRARY_FETCH_LIMIT}&kind=${section}`);
           const booksData = await booksResponse.json();
+        if (stale()) return;
 
           // Filter to only currently reading books and merge with progress
           const booksWithProgress = booksData.books
@@ -623,9 +644,18 @@ function App() {
           setCollectionBooks([]);
         }
       } else if (selectedCollection === 'recently-added') {
-        // A view over the whole library rather than a stored collection.
-        const response = await fetch(`http://localhost:3001/api/books?limit=${LIBRARY_FETCH_LIMIT}`);
+        // A view over the whole section rather than a stored collection.
+        const response = await fetch(`http://localhost:3001/api/books?limit=${LIBRARY_FETCH_LIMIT}&kind=${section}`);
         const data = await response.json();
+        if (stale()) return;
+        setBooks(data.books || []);
+        setTotalBooks(data.pagination?.total ?? (data.books || []).length);
+        setCollectionBooks([]);
+      } else if (selectedSeries) {
+        // Every issue of one magazine
+        const response = await fetch(`http://localhost:3001/api/books?limit=${LIBRARY_FETCH_LIMIT}&kind=magazine&series=${encodeURIComponent(selectedSeries)}`);
+        const data = await response.json();
+        if (stale()) return;
         setBooks(data.books || []);
         setTotalBooks(data.pagination?.total ?? (data.books || []).length);
         setCollectionBooks([]);
@@ -633,18 +663,21 @@ function App() {
         // Regular collection
         const response = await fetch(`http://localhost:3001/api/collections/${selectedCollection}`);
         const data = await response.json();
+        if (stale()) return;
         console.log('Loaded collection books:', data);
         setBooks(data.books || []);
         setCollectionBooks(data.books || []);
       } else {
-        // Load all books
-        const response = await fetch(`http://localhost:3001/api/books?limit=${LIBRARY_FETCH_LIMIT}`);
+        // Everything in the section
+        const response = await fetch(`http://localhost:3001/api/books?limit=${LIBRARY_FETCH_LIMIT}&kind=${section}`);
         const data = await response.json();
+        if (stale()) return;
         setBooks(data.books || []);
         setTotalBooks(data.pagination?.total ?? (data.books || []).length);
         setCollectionBooks([]);
       }
     } catch (error) {
+      if (stale()) return;
       console.error('Failed to load books:', error);
       setBooks([]);
       setCollectionBooks([]);
@@ -748,7 +781,7 @@ function App() {
   // Also covers the initial load, so no separate mount effect is needed.
   useEffect(() => {
     loadBooks();
-  }, [selectedCollection]);
+  }, [selectedCollection, section]);
 
   const renderBookCard = (book) => (
               <BookCard
@@ -779,7 +812,7 @@ function App() {
                     setIsModalOpen(true);
                   }
                 }}
-                onRemoveFromCollection={selectedCollection ? removeBookFromCollection : null}
+                onRemoveFromCollection={isStoredCollection ? removeBookFromCollection : null}
                 selectedCollection={selectedCollection}
                 newForDays={NEW_BOOK_DAYS}
               />
@@ -791,7 +824,11 @@ function App() {
       <CollectionsSidebar
         key={collectionsRefreshKey}
         selectedCollection={selectedCollection}
-        onCollectionSelect={setSelectedCollection}
+        section={section}
+        onSelect={(nextSection, collection) => {
+          setSection(nextSection);
+          setSelectedCollection(collection);
+        }}
         unseenCount={unseenCount}
         selectedBookIds={selectedBookIds}
         isSelectionMode={isSelectionMode}
@@ -810,13 +847,15 @@ function App() {
           <div className="flex items-center justify-between">
             <h1 className="flex items-baseline gap-2 text-lg font-semibold tracking-tight text-ink">
               Librarian
-              {selectedCollection && (
+              {(selectedCollection || section === 'magazine') && (
                 <span className="text-sm font-normal text-ink-faint">
-                  / {selectedCollection === 'recently-added'
-                    ? 'Recently Added'
-                    : selectedCollection === 'currently-reading'
-                      ? 'Currently Reading'
-                      : 'Collection'}
+                  / {[
+                    section === 'magazine' && !isStoredCollection && 'Magazines',
+                    selectedCollection === 'recently-added' && 'Recently Added',
+                    selectedCollection === 'currently-reading' && 'Currently Reading',
+                    selectedSeries,
+                    isStoredCollection && 'Collection'
+                  ].filter(Boolean).join(' / ')}
                 </span>
               )}
             </h1>
@@ -939,7 +978,7 @@ function App() {
                      books still read as "834 books". */
                   : filteredAndSortedBooks.length !== (totalBooks || books.length)
                     ? `${filteredAndSortedBooks.length} of ${totalBooks || books.length}`
-                    : `${totalBooks || books.length} books`}
+                    : `${totalBooks || books.length} ${section === 'magazine' && !isStoredCollection ? 'issues' : 'books'}`}
               </span>
               <div className="flex items-center gap-1">
                 <input
@@ -1120,7 +1159,9 @@ function App() {
                       {group.label}
                     </h2>
                     <span className="text-2xs tabular-nums text-ink-faint">
-                      {group.total} {group.total === 1 ? 'book' : 'books'}
+                      {group.total} {section === 'magazine'
+                        ? (group.total === 1 ? 'issue' : 'issues')
+                        : (group.total === 1 ? 'book' : 'books')}
                     </span>
                     <span className="h-px flex-1 bg-hairline" />
                   </div>

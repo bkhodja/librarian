@@ -1,7 +1,40 @@
 import React, { useState, useEffect } from 'react';
 import StatusNote, { useStatus } from './StatusNote';
 
-function CollectionsSidebar({ selectedCollection, onCollectionSelect, selectedBookIds, isSelectionMode, onBooksAdded, unseenCount = 0 }) {
+function NavItem({ active, icon, label, count, badge, badgeTitle, onClick, indent = false }) {
+  return (
+    <div
+      className={`flex w-full cursor-pointer items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm transition-colors ${
+        indent ? 'pl-4' : ''
+      } ${active ? 'bg-accent-soft text-accent-ink' : 'text-ink hover:bg-surface-hover'}`}
+      onClick={onClick}
+    >
+      {icon && <span className="text-base leading-none">{icon}</span>}
+      <span className="min-w-0 flex-1 truncate" title={label}>{label}</span>
+      {badge > 0 && (
+        <span
+          className="rounded-full bg-accent px-1.5 py-0.5 text-2xs font-semibold tabular-nums text-white"
+          title={badgeTitle}
+        >
+          {badge > 99 ? '99+' : badge}
+        </span>
+      )}
+      {count != null && !badge && (
+        <span className="shrink-0 text-2xs tabular-nums text-ink-faint">{count.toLocaleString()}</span>
+      )}
+    </div>
+  );
+}
+
+function SectionHeading({ children }) {
+  return (
+    <h2 className="mb-1 mt-4 px-2 text-2xs font-semibold uppercase tracking-wider text-ink-faint first:mt-0">
+      {children}
+    </h2>
+  );
+}
+
+function CollectionsSidebar({ selectedCollection, section = 'book', onSelect, selectedBookIds, isSelectionMode, onBooksAdded, unseenCount = 0 }) {
   const notice = useStatus();
   const [suggestions, setSuggestions] = useState(null);
   const [suggesting, setSuggesting] = useState(false);
@@ -10,10 +43,55 @@ function CollectionsSidebar({ selectedCollection, onCollectionSelect, selectedBo
   const [newCollectionName, setNewCollectionName] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const [sections, setSections] = useState({ book: null, magazine: null });
+  const [titles, setTitles] = useState([]);
+  const [titlesOpen, setTitlesOpen] = useState(false);
+  const [titleFilter, setTitleFilter] = useState('');
+
   // Load collections
   useEffect(() => {
     loadCollections();
   }, []);
+
+  // Section counts and magazine titles. New issues arrive in the background,
+  // so this is refreshed now and then rather than only once.
+  useEffect(() => {
+    let retry;
+    const load = async () => {
+      clearTimeout(retry);
+      try {
+        const [counts, series] = await Promise.all([
+          fetch('http://localhost:3001/api/books/sections').then((r) => r.json()),
+          fetch('http://localhost:3001/api/books/series').then((r) => r.json())
+        ]);
+        setSections(counts);
+        setTitles(Array.isArray(series) ? series : []);
+      } catch {
+        // The server may be restarting; try again soon rather than in a minute.
+        retry = setTimeout(load, 5000);
+      }
+    };
+    load();
+    const timer = setInterval(load, 60000);
+    return () => {
+      clearInterval(timer);
+      clearTimeout(retry);
+    };
+  }, []);
+
+  // Opening a magazine's issues from elsewhere should show where it is.
+  useEffect(() => {
+    if (typeof selectedCollection === 'string' && selectedCollection.startsWith('series:')) {
+      setTitlesOpen(true);
+    }
+  }, [selectedCollection]);
+
+  const isView = (viewSection, collection) =>
+    section === viewSection && selectedCollection === collection;
+
+  const shownTitles = titleFilter.trim()
+    ? titles.filter((t) => t.name.toLowerCase().includes(titleFilter.trim().toLowerCase()))
+    : titles;
 
   const loadCollections = async () => {
     try {
@@ -106,7 +184,7 @@ function CollectionsSidebar({ selectedCollection, onCollectionSelect, selectedBo
       if (response.ok) {
         await loadCollections();
         if (selectedCollection === id) {
-          onCollectionSelect(null);
+          onSelect(section, null);
         }
       } else {
         const detail = await response.json().catch(() => ({}));
@@ -162,7 +240,81 @@ function CollectionsSidebar({ selectedCollection, onCollectionSelect, selectedBo
   return (
     <aside className="sticky top-0 h-screen w-56 shrink-0 overflow-y-auto border-r border-hairline bg-surface-sunken">
       <div className="p-3">
-        <div className="mb-2 flex items-center justify-between">
+        <SectionHeading>Books</SectionHeading>
+        <NavItem
+          icon="📚" label="All Books" count={sections.book}
+          active={isView('book', null)} onClick={() => onSelect('book', null)}
+        />
+        {/* Recently Added - a view over the section, not a stored collection */}
+        <NavItem
+          icon="🆕" label="Recently Added"
+          badge={section === 'book' ? unseenCount : 0}
+          badgeTitle={`${unseenCount} added since you last looked`}
+          active={isView('book', 'recently-added')} onClick={() => onSelect('book', 'recently-added')}
+        />
+        <NavItem
+          icon="📖" label="Currently Reading"
+          active={isView('book', 'currently-reading')} onClick={() => onSelect('book', 'currently-reading')}
+        />
+
+        <SectionHeading>Magazines</SectionHeading>
+        <NavItem
+          icon="📰" label="All Magazines" count={sections.magazine}
+          active={isView('magazine', null)} onClick={() => onSelect('magazine', null)}
+        />
+        <NavItem
+          icon="🆕" label="Recently Added"
+          badge={section === 'magazine' ? unseenCount : 0}
+          badgeTitle={`${unseenCount} added since you last looked`}
+          active={isView('magazine', 'recently-added')} onClick={() => onSelect('magazine', 'recently-added')}
+        />
+        <NavItem
+          icon="📖" label="Currently Reading"
+          active={isView('magazine', 'currently-reading')} onClick={() => onSelect('magazine', 'currently-reading')}
+        />
+        {titles.length > 0 && (
+          <>
+            <button
+              onClick={() => setTitlesOpen(!titlesOpen)}
+              className="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm text-ink-muted transition-colors hover:bg-surface-hover hover:text-ink"
+              aria-expanded={titlesOpen}
+            >
+              <svg className={`h-4 w-4 transition-transform ${titlesOpen ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+              <span className="flex-1">Titles</span>
+              <span className="text-2xs tabular-nums text-ink-faint">{titles.length}</span>
+            </button>
+            {titlesOpen && (
+              <div className="mb-1">
+                {titles.length > 12 && (
+                  <input
+                    type="search"
+                    value={titleFilter}
+                    onChange={(e) => setTitleFilter(e.target.value)}
+                    placeholder="Filter titles…"
+                    className="mx-2 mb-1 w-[calc(100%-1rem)] rounded border border-hairline bg-surface px-2 py-1 text-xs text-ink placeholder:text-ink-faint focus:border-accent focus:outline-none"
+                  />
+                )}
+                {shownTitles.map((title) => (
+                  <NavItem
+                    key={title.name}
+                    indent
+                    label={title.name}
+                    count={title.count}
+                    active={isView('magazine', `series:${title.name}`)}
+                    onClick={() => onSelect('magazine', `series:${title.name}`)}
+                  />
+                ))}
+                {shownTitles.length === 0 && (
+                  <p className="px-4 py-1 text-2xs text-ink-faint">No title matches</p>
+                )}
+              </div>
+            )}
+          </>
+        )}
+
+        <div className="mb-2 mt-4 flex items-center justify-between">
           <h2 className="px-2 text-2xs font-semibold uppercase tracking-wider text-ink-faint">Collections</h2>
           {!isCreating && (
             <button
@@ -252,47 +404,6 @@ function CollectionsSidebar({ selectedCollection, onCollectionSelect, selectedBo
           </div>
         )}
 
-        {/* All Books */}
-        <div
-          className={`flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm transition-colors cursor-pointer ${
-            selectedCollection === null ? 'bg-accent-soft text-accent-ink' : 'text-ink hover:bg-surface-hover'
-          }`}
-          onClick={() => onCollectionSelect(null)}
-        >
-          <span className="text-base leading-none">📚</span>
-          <span className="flex-1">All Books</span>
-        </div>
-
-        {/* Recently Added - a view over the library, not a stored collection */}
-        <div
-          className={`flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm transition-colors cursor-pointer ${
-            selectedCollection === 'recently-added' ? 'bg-accent-soft text-accent-ink' : 'text-ink hover:bg-surface-hover'
-          }`}
-          onClick={() => onCollectionSelect('recently-added')}
-        >
-          <span className="text-base leading-none">🆕</span>
-          <span className="flex-1">Recently Added</span>
-          {unseenCount > 0 && (
-            <span
-              className="rounded-full bg-accent px-1.5 py-0.5 text-2xs font-semibold tabular-nums text-white"
-              title={`${unseenCount} added since you last looked`}
-            >
-              {unseenCount > 99 ? '99+' : unseenCount}
-            </span>
-          )}
-        </div>
-
-        {/* Currently Reading - Special Collection */}
-        <div
-          className={`flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm transition-colors cursor-pointer ${
-            selectedCollection === 'currently-reading' ? 'bg-accent-soft text-accent-ink' : 'text-ink hover:bg-surface-hover'
-          }`}
-          onClick={() => onCollectionSelect('currently-reading')}
-        >
-          <span className="text-base leading-none">📖</span>
-          <span className="flex-1">Currently Reading</span>
-        </div>
-
         {/* Collections List */}
         <div className="mt-2 space-y-1">
           {collections.map((collection) => (
@@ -301,7 +412,7 @@ function CollectionsSidebar({ selectedCollection, onCollectionSelect, selectedBo
                 className={`flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm transition-colors cursor-pointer ${
                   selectedCollection === collection.id ? 'bg-accent-soft text-accent-ink' : 'text-ink hover:bg-surface-hover'
                 }`}
-                onClick={() => onCollectionSelect(collection.id)}
+                onClick={() => onSelect(section, collection.id)}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
