@@ -4,7 +4,7 @@ import AskBook from './AskBook';
 import ReadingProgress from './ReadingProgress';
 import ModalPortal from './ModalPortal';
 
-function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollectionChange }) {
+function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollectionChange, onDelete }) {
   const [isEditing, setIsEditing] = useState(false);
   const [editedBook, setEditedBook] = useState(book || {});
   const [tags, setTags] = useState([]);
@@ -891,6 +891,16 @@ function BookDetailModal({ book, isOpen, onClose, onUpdate, onRead, onCollection
                   >
                     {isEnrichingMetadata ? 'Fetching...' : 'Fetch Metadata'}
                   </button>
+
+                  {onDelete && (
+                    <button
+                      onClick={onDelete}
+                      className="px-4 py-2 rounded-md border border-red-300 text-red-600 hover:bg-red-500/10 dark:border-red-500/40 dark:text-red-400"
+                      title="Delete from the library (asks first)"
+                    >
+                      Delete
+                    </button>
+                  )}
                 </div>
   
                 <StatusNote

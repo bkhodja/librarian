@@ -22,9 +22,8 @@ function BulkActionsModal({ isOpen, onClose, selectedBooks, onBulkAction, allTag
         }
         break;
       case 'delete':
-        if (window.confirm(`Delete ${selectedBooks.length} book(s)? Their files are moved to the Trash.`)) {
-          await onBulkAction('delete', {});
-        }
+        // The app asks for confirmation, listing what will be deleted.
+        await onBulkAction('delete', {});
         break;
       default:
         break;

@@ -9,6 +9,7 @@ import FullTextSearch from './components/FullTextSearch';
 import CrossBookCompare from './components/CrossBookCompare';
 import LibraryChat from './components/LibraryChat';
 import { compareIssues } from './utils/issueOrder';
+import DeleteConfirmDialog, { describeItems } from './components/DeleteConfirmDialog';
 import ReadingProgress from './components/ReadingProgress';
 import ReadingStatsDashboard from './components/ReadingStatsDashboard';
 import PDFViewer from './components/PDFViewer';
@@ -718,6 +719,58 @@ function App() {
     setIsSelectionMode(false);
   };
 
+  // Books or magazine issues waiting on the delete confirmation, or null.
+  const [deleteTargets, setDeleteTargets] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const askToDelete = (items) => {
+    if (items.length > 0) setDeleteTargets(items);
+  };
+
+  const askToDeleteSelection = () => {
+    const byId = new Map(books.map((b) => [b.id, b]));
+    askToDelete([...selectedBookIds].map((id) => byId.get(id) || { id, title: `#${id}` }));
+  };
+
+  const confirmDelete = async () => {
+    const items = deleteTargets;
+    const ids = items.map((item) => item.id);
+    setDeleting(true);
+    try {
+      const response = await fetch('http://localhost:3001/api/books/bulk/delete', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookIds: ids })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        appStatus.error(data.error || 'Could not delete');
+        return;
+      }
+
+      const gone = new Set(ids.filter((id) => !data.failed?.some((f) => f.id === id)));
+      setBooks((current) => current.filter((b) => !gone.has(b.id)));
+      setSelectedBookIds((current) => new Set([...current].filter((id) => !gone.has(id))));
+      if (selectedBook && gone.has(selectedBook.id)) {
+        setIsModalOpen(false);
+        setSelectedBook(null);
+      }
+      if (data.failed?.length) {
+        appStatus.error(`Deleted ${data.deleted}; ${data.failed.length} could not be removed (${data.failed[0].error || 'unknown error'})`);
+      } else {
+        appStatus.success(`Deleted ${describeItems(items).replace(/^this /, '1 ')}; moved to the Trash`);
+        clearSelection();
+      }
+      setCollectionsRefreshKey((k) => k + 1); // section counts in the sidebar
+      loadBooks();
+    } catch {
+      appStatus.error('Could not reach the server');
+    } finally {
+      setDeleting(false);
+      setDeleteTargets(null);
+    }
+  };
+
   const handleBulkAction = async (action, params) => {
     const bookIds = Array.from(selectedBookIds);
 
@@ -737,16 +790,8 @@ function App() {
           break;
 
         case 'delete':
-          const deleteResponse = await fetch('http://localhost:3001/api/books/bulk/delete', {
-            method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ bookIds })
-          });
-
-          if (deleteResponse.ok) {
-            await loadBooks(); // Reload to remove deleted books
-            clearSelection();
-          }
+          // The same confirmation as the Delete button, listing what goes.
+          askToDeleteSelection();
           break;
 
         default:
@@ -884,6 +929,14 @@ function App() {
                     className="px-3 py-1 text-sm bg-emerald-600 text-white rounded hover:bg-emerald-700 disabled:opacity-50"
                   >
                     Bulk Actions
+                  </button>
+                  <button
+                    onClick={askToDeleteSelection}
+                    disabled={selectedBookIds.size === 0}
+                    className="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+                    title="Delete the selected items (asks first)"
+                  >
+                    Delete{selectedBookIds.size > 0 ? ` (${selectedBookIds.size})` : ''}
                   </button>
                 </div>
               )}
@@ -1192,6 +1245,15 @@ function App() {
         onOpenBook={openBookById}
       />
 
+      {deleteTargets && (
+        <DeleteConfirmDialog
+          items={deleteTargets}
+          busy={deleting}
+          onCancel={() => setDeleteTargets(null)}
+          onConfirm={confirmDelete}
+        />
+      )}
+
       {/* Book Detail Modal */}
       <BookDetailModal
         book={selectedBook}
@@ -1213,6 +1275,7 @@ function App() {
           }
         }}
         onRead={() => handleReadPDF(selectedBook)}
+        onDelete={() => askToDelete([selectedBook])}
         onCollectionChange={() => {
           // Reload books and refresh sidebar
           loadBooks();
