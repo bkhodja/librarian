@@ -13,10 +13,11 @@ A powerful desktop application for cataloging and managing your personal PDF boo
 - 🔄 **Looks after itself** - runs as a background service; every book that
   lands in the folder gets a cover, metadata, subject tags and its full text
   (OCR for scans) without being asked. Cards flag what is still pending
-- 🗑️ **Deleting a book moves its file to the Trash** - select one or many
-  (books or magazines) and press Delete, or use Delete in a book's details;
-  a confirmation lists what will go. Merging duplicates removes the copies
-  from disk too (recoverable from the Trash)
+- 🗑️ **Delete** - the Delete button on a card (on hover), at the top of a
+  book's details, or in the header for several at once (press it, click the
+  books or magazines, press it again). A confirmation lists what will go; the
+  item leaves the library and its file leaves the folder for the Trash, where
+  it can still be restored. Merging duplicates removes the copies the same way
 - 🔍 **Smart Search** - Search by title, author, or content
 - 🏷️ **Tagging System** - Organize books with custom tags and categories
 - 🌍 **Multi-language Support** - Built for Russian and English books with automatic language detection
