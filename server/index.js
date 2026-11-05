@@ -23,6 +23,7 @@ const preferencesRouter = require('./routes/preferences');
 const semanticSearchRouter = require('./routes/semanticSearch');
 const summariesRouter = require('./routes/summaries');
 const compareRouter = require('./routes/compare');
+const chatRouter = require('./routes/chat');
 
 // Initialize database
 const db = require('./database/init');
@@ -173,6 +174,7 @@ app.use('/api/preferences', preferencesRouter);
 app.use('/api/search', semanticSearchRouter);
 app.use('/api/summaries', summariesRouter);
 app.use('/api/compare', compareRouter);
+app.use('/api/chat', chatRouter);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
