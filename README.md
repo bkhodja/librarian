@@ -29,6 +29,12 @@ There is no account, no per-token cost, and nothing leaves the laptop.
   pages cited, and an honest "not answered by this book" when it isn't
 - 🔎 **Ask the library** — "russian books about business added recently" sets
   the filters it means, so you can see and adjust the interpretation
+- 🗨️ **Library chat** — "I want to learn PostgreSQL: where do I start, and
+  what next?" gets a reading path through the books you own, easiest first,
+  with a line on why each one follows. Every book is profiled in the
+  background (level 1-5, audience, prerequisites) from its opening pages; the
+  chat skips what you have finished, picks up what you are reading, answers in
+  your language, and keeps past conversations. Cited books open with a click
 - 📖 **Compare across books** — "how do my books explain gradient descent?"
   puts one passage from each book that teaches it side by side, with the page
   numbers, so you can see which treatment suits you before opening anything
@@ -243,6 +249,8 @@ opens the database `DATABASE_PATH` selects, so try them on a copy first.
 
 - `scripts/index-pages.js` - index book pages for search (`--ocr` forces OCR)
 - `scripts/retag-books.js` - normalise tags and tag untagged books
+- `scripts/profile-books.js` - profile books for the library chat
+  (`--tag=databases`, `--ids=12,40`, `--limit=50`)
 - `scripts/repair-metadata.js` / `scripts/repair-with-ai.js` - fix titles and authors
 - `scripts/enrich-all-metadata.js` - look books up on Open Library / Google Books
 - `scripts/reprocess-books.js`, `scripts/reprocess-epub.js`,
@@ -299,8 +307,9 @@ opens the database `DATABASE_PATH` selects, so try them on a copy first.
 - Duplicate detection and merging system
 - Language-based filtering
 
-Phases 6-10 and 13-16 (collections, dark mode, full-text search and OCR,
-the reader, semantic search, summaries, local AI, always on) are recorded in
+Phases 6-10 and 13-17 (collections, dark mode, full-text search and OCR,
+the reader, semantic search, summaries, local AI, always on, library chat)
+are recorded in
 [DEVELOPMENT_PLAN.md](./DEVELOPMENT_PLAN.md).
 
 ### Next Steps

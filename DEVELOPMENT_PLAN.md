@@ -81,6 +81,7 @@
 - **Similar Books discovery in BookDetailModal**
 - **Book summaries with the local model (Ollama), extractive fallback without it**
 - **Three-tier summarization: single-pass, map-reduce, sampled**
+- **Library chat: reading paths through the library, from per-book difficulty profiles**
 
 ### 🚧 Next Priority Tasks
 
@@ -562,6 +563,44 @@ the reply — `~/.ssh` included.
 - [x] Listens on 127.0.0.1, and refuses a non-loopback `Host` header against
       DNS rebinding; `HOST=0.0.0.0` opts back into the network
 
+### Phase 17: Library Chat ✅ COMPLETE
+
+A conversation with the library: "I want to read books on PostgreSQL" is
+answered with a reading path through the books on the shelf, starting with
+the easiest and saying why each next book follows.
+
+**Knowing how hard a book is**
+
+- [x] Nothing recorded difficulty, and half the books have no description.
+      `bookProfiler` has the local model read each book's details and opening
+      pages (contents, preface, "who this book is for") and store level 1-5,
+      kind, audience, prerequisites, topics and a one-line summary in
+      `book_profiles`
+- [x] A background sweep profiles the library a batch at a time, books being
+      read first, then work subjects; it gives way to tagging. About 6s a
+      book with `qwen3.6:35b-a3b`; `gemma3:4b` was faster but put internals
+      books at level 3-4 where qwen put them at 5
+- [x] Profiles record the model and prompt version; changing either
+      re-profiles. A book the model cannot read is recorded and not retried
+- [x] `scripts/profile-books.js` profiles on demand
+
+**The chat**
+
+- [x] Each turn: the model restates the question as searches in English and
+      Russian; semantic search and a title/description word match (stemmed,
+      case-folded for Cyrillic — `books_fts` covers only 298 books) find
+      candidates, fused by rank; copies of one book collapse to one card
+- [x] The model answers from cards (level, kind, audience, prerequisites,
+      summary, reading status) and cites `[[book:ID]]`; any book not on the
+      cards is removed from the answer
+- [x] Reading history counts: finished books are skipped, a book in progress
+      is suggested first, a stalled one is mentioned
+- [x] Answers stream over server-sent events on the POST (`/api/chat`);
+      closing the panel or Stop ends the model's work. Conversations are kept
+      in `chat_conversations` / `chat_messages`
+- [x] A slide-over panel from the header; book chips show cover and level
+      and open the book's details over the chat
+
 ---
 
 ## Database Schema
@@ -952,6 +991,21 @@ Bibliotheka/
 ---
 
 ## Changelog
+
+### 2026-11-04 - Phase 17 - Library Chat
+
+- **Library chat.** Ask what to read and in what order; answers come from
+  the books on the shelf, easiest first, with each step explained, and know
+  what you have finished or are reading. Answers stream; conversations are
+  kept. Measured on the PostgreSQL shelf (23 books, mostly Russian, five
+  copies of one): the path runs "Первое знакомство" (1) → SQL basics (2) →
+  PL/pgSQL (3) → optimisation (4) → "изнутри" (5) in about 12 seconds.
+- **Every book gets a difficulty profile** from its opening pages, in the
+  background. Several hours for the whole library; until a book is
+  profiled the chat judges it from its title and says so.
+- Ollama client gained `chat` and `chatStream` (`/api/chat`, streamed).
+- CI runs again: the fork's Actions were switched on, and CI installs with
+  npm 11, which wrote the lockfile; npm 10 refused it.
 
 ### 2026-11-04 - Embeddings for the Whole Library
 
@@ -1483,4 +1537,4 @@ Bibliotheka/
 
 ---
 
-*This is a living document. Last major update: Phase 16 - Always On.*
+*This is a living document. Last major update: Phase 17 - Library Chat.*
