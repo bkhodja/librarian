@@ -3,7 +3,9 @@ const quality = require('../server/services/metadataQuality');
 describe('isPlausibleTitle', () => {
   test.each([
     'Clean Code',
-    'Базы данных на Python'
+    'Базы данных на Python',
+    'Node.js',
+    'ASP.NET Core in Action'
   ])('accepts %p', (title) => {
     expect(quality.isPlausibleTitle(title)).toBe(true);
   });
@@ -12,7 +14,9 @@ describe('isPlausibleTitle', () => {
     'architectingpowerbisolutionsinmicrosoftfabric',
     'expertdatamodelingwithpowerbi 2nd edition',
     'Untitled',
-    '9781492032649'
+    '9781492032649',
+    'downmagaz.net',
+    'www.example.com'
   ])('rejects %p', (title) => {
     expect(quality.isPlausibleTitle(title)).toBe(false);
   });

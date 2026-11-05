@@ -168,6 +168,12 @@ function isPlausibleTitle(value) {
   // A run of digits that long is an ISBN or a product code.
   if (/\d{7,}/.test(title)) return false;
 
+  // The site a PDF was downloaded from, written into its title field:
+  // eleven magazine issues arrived titled "downmagaz.net".
+  if (/^(?:https?:\/\/)?(?:www\.)?[\w-]+(?:\.[\w-]+)*\.(?:com|net|org|info|ru|io|me|to|cc|biz|club|xyz|site|online)\/?$/i.test(title)) {
+    return false;
+  }
+
   // Run-together slug: long, no spaces, and not simply one long word.
   const words = title.split(/\s+/);
   if (words.length === 1 && title.length > 18) return false;
