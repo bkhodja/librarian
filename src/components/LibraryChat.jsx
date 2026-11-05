@@ -237,12 +237,12 @@ function LibraryChat({ isOpen, onClose, onOpenBook }) {
   return (
     <ModalPortal>
       <aside
-        aria-label="Ask the library"
+        aria-label="Library chat"
         aria-hidden={!isOpen}
         className={`fixed inset-y-0 right-0 z-50 flex w-full flex-col bg-surface shadow-2xl ring-1 ring-hairline transition-transform duration-200 ease-out sm:w-[460px] ${isOpen ? 'translate-x-0' : 'pointer-events-none translate-x-full'}`}
       >
         <header className="flex items-center gap-1 border-b border-hairline px-3 py-2">
-          <h2 className="flex-1 pl-1 text-sm font-semibold text-ink">Ask the library</h2>
+          <h2 className="flex-1 pl-1 text-sm font-semibold text-ink">Library chat</h2>
           <button onClick={toggleHistory} className={showHistory ? `${iconButton} bg-accent-soft text-accent-ink` : iconButton} title="Past conversations">
             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />

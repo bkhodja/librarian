@@ -6,7 +6,7 @@ const duplicateDetector = require('./duplicateDetector');
 const { toTerms } = require('./ftsQuery');
 
 /**
- * Ask the Library: a conversation about the books on this machine.
+ * Library chat: a conversation about the books on this machine.
  *
  * Each turn runs in three steps. The model first restates the question as
  * searches (in English and Russian, since most of the library is Russian).
