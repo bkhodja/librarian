@@ -90,7 +90,7 @@ class BackgroundTaskManager extends EventEmitter {
     try {
       const newBooks = await this.scanForNewBooks();
       if (newBooks.length > 0) {
-        console.log(`📖 Found ${newBooks.length} new books`);
+        console.log(`📖 Found ${newBooks.length} new file(s)`);
         await this.addBooksToDatabase(newBooks);
 
         // Queue for processing
