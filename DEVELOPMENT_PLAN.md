@@ -4,18 +4,19 @@
 
 **Name:** Librarian
 **Purpose:** Personal book catalog application for macOS
-**Status:** Phase 16 - Always on
+**Status:** Phase 18 - Magazines
 **Last Updated:** 2026-11-04
 
 ### Core Requirements
 
-- Catalog PDF books from a Books folder on external storage
+- Catalog PDF and ePUB books from a Books folder on external storage, and
+  magazines from a Magazines folder
 - Support for both searchable and scanned PDFs
 - Russian and English language support
 - Automatic file discovery and monitoring
 - Advanced search and filtering capabilities
 - 100% free and open-source stack
-- Runs completely offline on local machine
+- Runs completely offline on local machine, local AI included
 
 ---
 
@@ -108,43 +109,15 @@
 
 ## Technology Stack
 
-### Frontend
+React 19 + Vite 7 + Tailwind 3 · Electron 45 · Node.js 22 + Express 5 ·
+SQLite (better-sqlite3, FTS5) · pdf-parse, pdf.js, pdf2pic + GraphicsMagick ·
+Apple Vision / Tesseract.js OCR · Ollama (`qwen3.6:35b-a3b`, `gemma3:4b`) ·
+`@huggingface/transformers` (multilingual MiniLM embeddings) · Jest ·
+GitHub Actions.
 
-- **Framework:** React 18.x
-- **Desktop Framework:** Electron 28.x
-- **UI Components:** Custom components (no paid libraries)
-- **Styling:** Tailwind CSS v3 (free)
-- **State Management:** React hooks + Context
-
-### Backend
-
-- **Runtime:** Node.js 20.x LTS
-- **API Framework:** Express.js
-- **Database:** SQLite3 with better-sqlite3
-- **Logging:** Winston
-
-### PDF Processing
-
-- **Text Extraction:** pdf-parse v1.1.1
-- **PDF Viewer:** react-pdf with pdfjs-dist
-- **OCR Engine:** Tesseract.js 5.x
-- **Full-Text Search:** SQLite FTS5
-- **Thumbnail Generation:** pdf2pic + GraphicsMagick
-- **Image Processing:** Sharp
-- **Language Detection:** Franc
-
-### AI & Search
-
-- **Local Embeddings:** @huggingface/transformers (paraphrase-multilingual-MiniLM-L12-v2), model in `data/models/`
-- **Local Models:** Ollama (`qwen3.6:35b-a3b`, `gemma3:4b`) for summaries, Ask, compare, tags
-- **Full-Text Search:** SQLite FTS5
-- **Vector Search:** Brute-force cosine similarity in SQLite
-
-### Utilities
-
-- **File Watching:** Chokidar
-- **Build System:** GitHub Actions
-- **Testing:** Jest + React Testing Library
+How the pieces fit — processes, pipeline, background tasks, data model, AI,
+interface — is in [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md), which is
+kept current. This plan records how it got there.
 
 ---
 
@@ -635,239 +608,14 @@ A second section beside Books, fed from `MAGAZINES_FOLDER`
 
 ---
 
-## Database Schema
+## Database Schema and API
 
-```sql
--- Core tables
-books (
-  id INTEGER PRIMARY KEY,
-  title TEXT,
-  author TEXT,
-  language TEXT,
-  file_path TEXT UNIQUE NOT NULL,
-  file_size INTEGER,
-  page_count INTEGER,
-  pdf_type TEXT, -- 'searchable', 'scanned', 'mixed', 'unknown'
-  ocr_confidence REAL,
-  ocr_status TEXT, -- 'not_needed', 'pending', 'processing', 'completed', 'failed'
-  ocr_text TEXT, -- OCR extracted text
-  ocr_processed INTEGER DEFAULT 0,
-  ocr_processed_at DATETIME,
-  ocr_error TEXT,
-  needs_review BOOLEAN DEFAULT 0,
-  manual_metadata TEXT, -- JSON
-  thumbnail_path TEXT, -- Path to generated thumbnail
-  content TEXT, -- Extracted text content for search
-  date_added DATETIME,
-  last_modified DATETIME,
-  last_opened DATETIME
-)
-
--- Full-text search virtual table
-books_fts (
-  title TEXT,
-  author TEXT,
-  content TEXT
-) USING fts5
-
-tags (
-  id INTEGER PRIMARY KEY,
-  name TEXT UNIQUE NOT NULL,
-  color TEXT
-)
-
-categories (
-  id INTEGER PRIMARY KEY,
-  name TEXT UNIQUE NOT NULL,
-  description TEXT,
-  parent_id INTEGER REFERENCES categories(id)
-)
-
--- Relationship tables
-book_tags (
-  book_id INTEGER REFERENCES books(id),
-  tag_id INTEGER REFERENCES tags(id),
-  PRIMARY KEY (book_id, tag_id)
-)
-
-book_categories (
-  book_id INTEGER REFERENCES books(id),
-  category_id INTEGER REFERENCES categories(id),
-  PRIMARY KEY (book_id, category_id)
-)
-
--- Additional metadata
-book_notes (
-  id INTEGER PRIMARY KEY,
-  book_id INTEGER REFERENCES books(id),
-  note TEXT,
-  created_at DATETIME
-)
-
-reading_progress (
-  book_id INTEGER PRIMARY KEY REFERENCES books(id),
-  current_page INTEGER,
-  total_pages INTEGER,
-  last_read DATETIME
-)
-
--- OCR Queue
-ocr_queue (
-  id INTEGER PRIMARY KEY,
-  book_id INTEGER NOT NULL UNIQUE REFERENCES books(id),
-  status TEXT DEFAULT 'pending', -- 'pending', 'processing', 'completed', 'failed'
-  priority INTEGER DEFAULT 0,
-  attempts INTEGER DEFAULT 0,
-  error_message TEXT,
-  created_at DATETIME,
-  started_at DATETIME,
-  completed_at DATETIME
-)
-
--- Collections/Shelves
-collections (
-  id INTEGER PRIMARY KEY,
-  name TEXT UNIQUE NOT NULL,
-  description TEXT,
-  icon TEXT,
-  color TEXT,
-  is_smart INTEGER DEFAULT 0,
-  smart_rules TEXT, -- JSON for smart collection rules
-  position INTEGER DEFAULT 0,
-  created_at DATETIME,
-  updated_at DATETIME
-)
-
-book_collections (
-  book_id INTEGER REFERENCES books(id),
-  collection_id INTEGER REFERENCES collections(id),
-  position INTEGER DEFAULT 0,
-  added_at DATETIME,
-  PRIMARY KEY (book_id, collection_id)
-)
-
--- AI Embeddings (Phase 13)
-book_embeddings (
-  book_id INTEGER PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE,
-  embedding BLOB NOT NULL,        -- 384-dim float32 vector
-  model_name TEXT NOT NULL,        -- 'Xenova/all-MiniLM-L6-v2'
-  text_hash TEXT NOT NULL,         -- SHA-256 for change detection
-  created_at DATETIME,
-  updated_at DATETIME
-)
-
--- AI Summaries (Phase 14)
-book_summaries (
-  book_id INTEGER PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE,
-  summary TEXT NOT NULL,
-  summary_short TEXT,              -- 1-2 sentence version
-  model_name TEXT NOT NULL,        -- 'claude-haiku-4-5-20251001' or 'extractive-local'
-  content_hash TEXT NOT NULL,      -- SHA-256 for cache invalidation
-  token_count INTEGER,
-  strategy TEXT,                   -- 'single-pass', 'map-reduce', 'sampled', 'extractive'
-  status TEXT DEFAULT 'completed',
-  error_message TEXT,
-  created_at DATETIME,
-  updated_at DATETIME
-)
-```
-
----
-
-## API Endpoints
-
-### Books
-
-- `GET /api/books` - List all books with pagination, filtering, and sorting
-- `GET /api/books/:id` - Get book details
-- `POST /api/books` - Add new book manually
-- `PUT /api/books/:id` - Update book metadata
-- `DELETE /api/books/:id` - Remove book from catalog
-- `POST /api/books/:id/open` - Open PDF in default reader
-- `POST /api/books/:id/thumbnail` - Generate thumbnail for single book
-- `POST /api/books/thumbnails/batch` - Batch generate thumbnails
-
-### Bulk Operations
-
-- `POST /api/books/bulk/tags` - Add tags to multiple books
-- `DELETE /api/books/bulk/delete` - Delete multiple books
-- `POST /api/books/bulk/update` - Update metadata for multiple books
-
-### Search & Filter
-
-- `GET /api/books?search=&searchMode=&tags=&author=&fileType=&sortBy=&sortOrder=` - Advanced filtering with full-text search
-  - searchMode: 'all' (default), 'title', 'author', 'content'
-- `GET /api/books/recent` - Recently added/opened
-
-### Tags & Categories
-
-- `GET /api/tags` - List all tags
-- `POST /api/tags` - Create new tag
-- `GET /api/books/:id/tags` - Get tags for a book
-- `POST /api/books/:id/tags` - Add tag to book
-- `DELETE /api/books/:id/tags/:tagId` - Remove tag from book
-- `GET /api/categories` - List categories
-- `POST /api/categories` - Create category
-
-### Collections
-
-- `GET /api/collections` - List all collections with book counts
-- `GET /api/collections/:id` - Get collection with its books
-- `POST /api/collections` - Create new collection
-- `PUT /api/collections/:id` - Update collection
-- `DELETE /api/collections/:id` - Delete collection
-- `POST /api/collections/:id/books` - Add books to collection
-- `DELETE /api/collections/:id/books/:bookId` - Remove book from collection
-- `PUT /api/collections/reorder` - Update collection order
-- `PUT /api/collections/:id/books/reorder` - Update book order in collection
-- `POST /api/collections/init-defaults` - Initialize default collections
-
-### Reading Progress
-
-- `GET /api/progress/:bookId` - Get reading progress for a book
-- `POST /api/progress/:bookId` - Update reading progress
-- `GET /api/progress/reading/all` - Get all currently reading books
-- `PUT /api/progress/:bookId/status` - Update reading status
-
-### OCR Queue
-
-- `GET /api/ocr-queue/stats` - Get OCR queue statistics
-- `GET /api/ocr-queue/items` - Get queue items with details
-- `POST /api/ocr-queue/add` - Add books to OCR queue
-- `POST /api/ocr-queue/batch` - Queue all scanned PDFs for OCR
-- `DELETE /api/ocr-queue/remove/:bookId` - Remove book from queue
-- `POST /api/ocr-queue/clear-completed` - Clear completed jobs
-- `POST /api/ocr-queue/reset-failed` - Reset failed jobs for retry
-- `GET /api/ocr-queue/books-needing-ocr` - Get books that need OCR
-- `GET /api/ocr-queue/history/:bookId` - Get OCR history for a book
-- `POST /api/ocr-queue/control` - Start/stop processing
-
-### Semantic Search (Phase 13)
-
-- `GET /api/search/semantic?q=` - AI semantic search by meaning
-- `GET /api/search/hybrid?q=` - Combined FTS5 + semantic search
-- `GET /api/search/similar/:bookId` - Find similar books
-- `GET /api/search/embeddings/stats` - Embedding coverage statistics
-- `POST /api/search/embeddings/generate` - Embed all books
-- `POST /api/search/embeddings/book/:bookId` - Embed single book
-
-### AI Summaries (Phase 14)
-
-- `GET /api/summaries/:bookId` - Get cached summary
-- `POST /api/summaries/:bookId/generate` - Generate summary (AI or extractive)
-- `DELETE /api/summaries/:bookId` - Delete cached summary
-- `GET /api/summaries/status` - Check if AI is available
-- `GET /api/summaries/stats` - Summary coverage statistics
-- `POST /api/summaries/batch` - Batch generate summaries
-
-### System
-
-- `POST /api/scan` - Trigger manual scan
-- `POST /api/books/process` - Batch process metadata
-- `GET /api/stats` - Library statistics
-- `POST /api/ocr/:id` - Run OCR on scanned PDF (Tesseract.js)
-- `GET /api/config` - Get app configuration
-- `POST /api/search/rebuild-index` - Rebuild FTS5 search index
+Both are described, as they are now, in
+[docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md#data-model) (tables, what each
+holds, how they relate) and [there](./docs/ARCHITECTURE.md#api) (every router
+and its main endpoints). The versions that used to live here had drifted from
+the code — a `content` column that no longer exists, endpoints that were never
+built — so they were replaced by the link rather than kept in two places.
 
 ---
 
@@ -938,12 +686,19 @@ book_summaries (
 - Fast for local queries
 - Perfect for single-user apps
 
-### Why Tesseract.js?
+### Why Apple Vision, with Tesseract.js behind it?
 
-- Completely free
-- Runs offline
-- Supports Russian & English
-- No API limits
+- Both free and offline, both read Russian and English
+- Vision (through the Swift helper in `tools/visionocr`) is several times
+  faster than Tesseract and better at Cyrillic, so it is used on a Mac
+- Tesseract.js remains the fallback where Vision or `swiftc` is unavailable
+
+### Why local models through Ollama?
+
+- No keys, no per-token cost, nothing leaves the machine
+- Schema-constrained output (`format`) makes every reply parse
+- One model for every task stays loaded; more in
+  [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md#design-decisions)
 
 ### Why pdf2pic + GraphicsMagick?
 
@@ -958,33 +713,10 @@ book_summaries (
 
 ### Code Structure
 
-```text
-Bibliotheka/
-├── electron/                 # main.js, preload.js
-├── src/
-│   ├── App.jsx               # library grid, filters, toolbar
-│   ├── components/           # modals, readers, sidebar, cards
-│   └── hooks/useDarkMode.js
-├── server/
-│   ├── index.js              # Express app; also serves dist/ on :3001
-│   ├── database/init.js      # schema and migrations; honours DATABASE_PATH
-│   ├── routes/               # one router per /api/* area
-│   └── services/
-│       ├── backgroundTaskManager.js  # scan, watch, thumbnails, tags, text, OCR, hashes
-│       ├── bookProcessorPool.js      # worker threads for ingest
-│       ├── ollamaClient.js           # local model access
-│       ├── aiTagger.js, tagVocabulary.js
-│       ├── bookQA.js, crossBookCompare.js, queryInterpreter.js, summaryService.js
-│       ├── duplicateDetector.js, bookRemoval.js
-│       └── visionOcrExtractor.js, pdfOcrExtractor.js, ocrChild.js
-├── tools/visionocr/main.swift  # Apple Vision OCR, built on first use
-├── launchd/                  # always-on agent definition
-├── scripts/                  # maintenance scripts, run from the project root
-│   └── diagnostics/          # one-off investigations against the live library
-├── tests/                    # Jest unit tests; setup.js points them at a temp DB
-├── public/thumbnails/        # generated covers (untracked)
-└── .github/workflows/ci.yml
-```
+See [Repository layout](./docs/ARCHITECTURE.md#repository-layout). In short:
+one router per `/api/*` area, one concern per service file, all background
+work in `backgroundTaskManager.js`, and every model call through
+`ollamaClient.js`.
 
 ### Naming Conventions
 

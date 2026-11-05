@@ -1,5 +1,17 @@
 # Page-Level Search Implementation
 
+> **Historical notes (early 2026), kept for the page-numbering research.**
+> Since then:
+> - Page text is extracted for the whole library by a background sweep, in
+>   worker threads (`pageExtraction.js`), with OCR for scans. That's 5,500
+>   books and about 1.7 million pages, against 297 books here.
+> - The per-book page offset suggested under Next Steps exists
+>   (`PUT /api/books/:id/page-offset`).
+> - The `test-*.js` files listed below were removed.
+>
+> For how search works now, see
+> [ARCHITECTURE.md → Search](./ARCHITECTURE.md#search).
+
 ## Overview
 Implemented a comprehensive page-level search system that allows users to navigate directly to specific occurrences of search terms within PDF books.
 
