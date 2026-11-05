@@ -46,6 +46,7 @@ Cite a book by writing its tag exactly as on its card, e.g. [[book:123]]. Every 
 
 Level is 1 (first contact) to 5 (internals/expert). When asked how to learn a subject, give a reading path: start with the easiest suitable book and move up step by step, saying in a line why each book comes next (what it adds, what it assumes). Choose 3-6 books; leave out weak matches rather than padding the list. When two cards are the same book, cite only one.
 Use the reader's status: skip finished books (say they are done), suggest continuing a book in progress, and if they have read the basics, start them further along.
+A card marked "magazine issue" is one issue of a magazine: mention it as lighter or extra reading when it fits, never as a step in a reading path.
 A card marked "level unknown" has no profile yet; judge from its title and description and say the level is a guess.
 If no card fits, say plainly that the library has nothing on it.
 Answer in the language of the user's message. Be concise: short paragraphs or a numbered list in Markdown, no tables.`;
@@ -218,6 +219,7 @@ class LibraryChat {
     const books = db.prepare(`
       SELECT b.id, b.title, b.author, b.publication_year, b.page_count, b.language,
              b.description, b.thumbnail_path, b.file_path, b.file_hash, b.file_size,
+             b.kind, b.series,
              rp.percentage, rp.finished_reading, rp.last_read, rp.current_page
       FROM books b LEFT JOIN reading_progress rp ON rp.book_id = b.id
       WHERE b.id IN (${marks})
@@ -244,6 +246,8 @@ class LibraryChat {
       file_path: b.file_path,
       file_hash: b.file_hash,
       file_size: b.file_size,
+      kind: b.kind,
+      series: b.series,
       tags: tags.get(b.id) || [],
       profile: profiles.get(b.id) || null,
       status: this.readingStatus(b),
@@ -275,9 +279,15 @@ class LibraryChat {
   collapseCopies(cards) {
     const groups = [];
     for (const card of cards) {
-      const probe = { title: card.title, author: card.author, file_hash: card.file_hash, file_size: card.file_size, page_count: card.pages };
-      const group = groups.find((g) =>
-        duplicateDetector.compare({ ...g.probe }, { ...probe }) || this.sameTitleWithin(g.probe.title, probe.title));
+      const probe = { title: card.title, author: card.author, file_hash: card.file_hash, file_size: card.file_size, page_count: card.pages, kind: card.kind };
+      const group = groups.find((g) => {
+        // Issues of one magazine share nearly all of their title; only the
+        // same file twice is a copy.
+        if (g.probe.kind === 'magazine' || probe.kind === 'magazine') {
+          return Boolean(probe.file_hash) && g.probe.file_hash === probe.file_hash;
+        }
+        return duplicateDetector.compare({ ...g.probe }, { ...probe }) || this.sameTitleWithin(g.probe.title, probe.title);
+      });
       if (group) group.cards.push(card);
       else groups.push({ probe, cards: [card] });
     }
@@ -318,7 +328,10 @@ class LibraryChat {
 
     const lines = [`[[book:${card.id}]] "${card.title}"${facts ? ` — ${facts}` : ''}`];
     const p = card.profile;
-    if (p) {
+    if (card.kind === 'magazine') {
+      lines.push(`  magazine issue${card.series ? ` of ${card.series}` : ''}`);
+      if (card.description) lines.push(`  ${card.description.replace(/\s+/g, ' ').slice(0, 300)}`);
+    } else if (p) {
       lines.push(`  level ${p.level}/5, ${p.kind}; for ${p.audience || 'general readers'}`);
       if (p.prerequisites.length) lines.push(`  assumes: ${p.prerequisites.join('; ')}`);
       if (p.topics.length) lines.push(`  covers: ${p.topics.join('; ')}`);
@@ -338,7 +351,10 @@ class LibraryChat {
   }
 
   libraryOverview() {
-    const total = db.prepare('SELECT COUNT(*) AS n FROM books').get().n;
+    const books = db.prepare("SELECT COUNT(*) AS n FROM books WHERE kind = 'book'").get().n;
+    const magazines = db.prepare(`
+      SELECT COUNT(*) AS issues, COUNT(DISTINCT series) AS titles FROM books WHERE kind = 'magazine'
+    `).get();
     const subjects = db.prepare(`
       SELECT t.name, COUNT(*) AS n FROM book_tags bt JOIN tags t ON t.id = bt.tag_id
       GROUP BY t.name ORDER BY n DESC LIMIT 60
@@ -347,7 +363,7 @@ class LibraryChat {
       SELECT COALESCE(language, 'unknown') AS language, COUNT(*) AS n FROM books
       GROUP BY language ORDER BY n DESC LIMIT 8
     `).all().map((l) => `${l.language} ${l.n}`).join(', ');
-    return `The library holds ${total} books.\nBooks per subject: ${subjects}\nBooks per language: ${languages}`;
+    return `The library holds ${books} books and ${magazines.issues} magazine issues (${magazines.titles} magazines).\nBooks per subject: ${subjects}\nBooks per language: ${languages}`;
   }
 
   buildAnswerMessages({ message, history, cards, intent }) {
@@ -425,7 +441,8 @@ class LibraryChat {
       available: await ollama.isAvailable(),
       model: MODEL,
       profiled: bookProfiler.countProfiled(),
-      total: db.prepare('SELECT COUNT(*) AS n FROM books').get().n
+      // Magazines are not profiled, so they are not counted as waiting.
+      total: db.prepare("SELECT COUNT(*) AS n FROM books WHERE kind = 'book'").get().n
     };
   }
 }

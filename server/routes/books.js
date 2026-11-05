@@ -15,7 +15,7 @@ const LIST_COLUMNS = [
   'b.date_added', 'b.last_modified', 'b.last_opened', 'b.thumbnail_path',
   'b.publication_year', 'b.isbn', 'b.publisher', 'b.edition', 'b.description',
   'b.categories', 'b.average_rating', 'b.thumbnail_url', 'b.metadata_source',
-  'b.ocr_status', 'b.is_adult'
+  'b.ocr_status', 'b.is_adult', 'b.kind', 'b.series'
 ].join(', ');
 const metadataEnricher = require('../services/bookMetadataEnricher');
 const { removeBooks, removeBook } = require('../services/bookRemoval');
@@ -275,6 +275,9 @@ router.get('/', (req, res) => {
     const author = req.query.author || '';
     const fileType = req.query.fileType || '';
     const language = req.query.language || '';
+    // Books or magazines; both when absent. A series is one magazine's issues.
+    const kind = ['book', 'magazine'].includes(req.query.kind) ? req.query.kind : '';
+    const series = req.query.series || '';
     const sortBy = req.query.sortBy || 'date_added';
     const sortOrder = req.query.sortOrder?.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
 
@@ -305,6 +308,16 @@ router.get('/', (req, res) => {
       params.push(language);
     }
 
+    if (kind) {
+      query += ' AND b.kind = ?';
+      params.push(kind);
+    }
+
+    if (series) {
+      query += ' AND b.series = ?';
+      params.push(series);
+    }
+
     // Tags filter (if we have tags in the query)
     if (tags.length > 0) {
       query = `SELECT DISTINCT ${LIST_COLUMNS} FROM books b
@@ -323,6 +336,12 @@ router.get('/', (req, res) => {
       }
       if (language) {
         query += ' AND b.language = ?';
+      }
+      if (kind) {
+        query += ' AND b.kind = ?';
+      }
+      if (series) {
+        query += ' AND b.series = ?';
       }
 
       query += ' AND t.name IN (' + tags.map(() => '?').join(',') + ')';
@@ -354,6 +373,16 @@ router.get('/', (req, res) => {
       countParams.push(language);
     }
 
+    if (kind) {
+      countQuery += ' AND kind = ?';
+      countParams.push(kind);
+    }
+
+    if (series) {
+      countQuery += ' AND series = ?';
+      countParams.push(series);
+    }
+
     const { total } = db.prepare(countQuery).get(...countParams);
 
     res.json({
@@ -372,6 +401,36 @@ router.get('/', (req, res) => {
 });
 
 // Get single book by ID
+/**
+ * The magazine titles (one per folder under the magazines folder), with how
+ * many issues each has and when the latest arrived, for the sidebar.
+ */
+router.get('/series', (req, res) => {
+  try {
+    res.json(db.prepare(`
+      SELECT series AS name, COUNT(*) AS count, MAX(date_added) AS latest
+      FROM books
+      WHERE kind = 'magazine' AND series IS NOT NULL
+      GROUP BY series
+      ORDER BY series COLLATE NOCASE
+    `).all());
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/** How many books and how many magazines, for the sidebar. */
+router.get('/sections', (req, res) => {
+  try {
+    const counts = Object.fromEntries(
+      db.prepare('SELECT kind, COUNT(*) AS n FROM books GROUP BY kind').all().map((r) => [r.kind, r.n])
+    );
+    res.json({ book: counts.book || 0, magazine: counts.magazine || 0 });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 router.get('/:id', (req, res) => {
   try {
     const book = db.prepare('SELECT * FROM books WHERE id = ?').get(req.params.id);

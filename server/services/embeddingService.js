@@ -359,7 +359,9 @@ class EmbeddingService {
       FROM book_embeddings be
       JOIN books b ON be.book_id = b.id
       WHERE be.book_id != ? AND be.model_name = ?
-    `).all(bookId, EMBEDDING_KEY);
+        -- Similar books for a book, similar magazines for a magazine.
+        AND b.kind = (SELECT kind FROM books WHERE id = ?)
+    `).all(bookId, EMBEDDING_KEY, bookId);
 
     const results = rows.map(row => {
       const bookVector = this.bufferToVector(row.embedding);
