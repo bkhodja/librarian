@@ -82,6 +82,7 @@
 - **Book summaries with the local model (Ollama), extractive fallback without it**
 - **Three-tier summarization: single-pass, map-reduce, sampled**
 - **Library chat: reading paths through the library, from per-book difficulty profiles**
+- **Magazines section: a second folder, browsed by magazine, issues newest first**
 
 ### 🚧 Next Priority Tasks
 
@@ -601,6 +602,37 @@ the easiest and saying why each next book follows.
 - [x] A slide-over panel from the header; book chips show cover and level
       and open the book's details over the chat
 
+### Phase 18: Magazines ✅ COMPLETE
+
+A second section beside Books, fed from `MAGAZINES_FOLDER`
+(`/Volumes/Storage/Magazines`: 207 issues of 114 magazines, one folder each).
+
+- [x] Books and magazines share the `books` table, told apart by `kind`; a
+      magazine's `series` is the folder directly under the magazines folder.
+      A trigger sets both on every insert — the scanner, the watcher, the
+      manual scan and the add endpoint each insert their own way — and rows
+      are reclassified at startup, so moving the folder needs no migration
+- [x] Both folders are scanned, watched and served by `/pdf`; an unmounted
+      folder's files are not deleted from the library
+- [x] Magazines get covers, text, tags, adult checks and embeddings like
+      books; they skip the Open Library / Google Books lookups (which match an
+      issue to whatever book shares a word of its title) and difficulty
+      profiling
+- [x] Sidebar: Books and Magazines each have All, Recently Added and
+      Currently Reading; Magazines adds a filterable list of titles. A title
+      shows its issues newest first, by the date read from each title (eight
+      formats in this library: "October 12, 2026", "07.20.2026", "08.2026",
+      "17th23rd October, 2026", "Issue 257"…). Collections stay shared
+- [x] Similar Books stays within its section; the library chat suggests
+      magazine issues as extra reading, never as a step in a reading path,
+      and does not collapse one magazine's issues as copies
+- [x] `/api/books` takes `kind` and `series`; `/api/books/series` and
+      `/api/books/sections` feed the sidebar
+- [x] Found on the way: only the latest book-list request may fill the grid
+      (switching to magazines raced 5,000 books against 200 issues, and the
+      books won); fourteen issues were titled "downmagaz.net", from the PDF's
+      title field, and a domain is no longer a plausible title
+
 ---
 
 ## Database Schema
@@ -991,6 +1023,17 @@ Bibliotheka/
 ---
 
 ## Changelog
+
+### 2026-11-04 - Phase 18 - Magazines
+
+- **Magazines** have their own section, fed from `MAGAZINES_FOLDER`, with
+  the same covers, text, tags and search as books. The sidebar lists each
+  magazine; its issues show newest first. Collections hold both.
+- The chat and Similar Books know the difference: magazine issues are extra
+  reading, never a step in a reading path, and Similar Books stays in its
+  section. Magazines skip the online book catalogues and difficulty profiles.
+- Switching sections exposed a race in the book list (a slow, earlier request
+  could overwrite a later one); fixed.
 
 ### 2026-11-04 - Phase 17 - Library Chat
 
@@ -1537,4 +1580,4 @@ Bibliotheka/
 
 ---
 
-*This is a living document. Last major update: Phase 17 - Library Chat.*
+*This is a living document. Last major update: Phase 18 - Magazines.*

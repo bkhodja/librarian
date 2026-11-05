@@ -6,6 +6,10 @@ A powerful desktop application for cataloging and managing your personal PDF boo
 
 ### Core Features
 - 📚 **PDF Discovery & Import** - Automatically scan and import PDFs from your Books folder
+- 📰 **Magazines** - a second section fed from a Magazines folder (one folder
+  per magazine, its issues inside). Same covers, text, tags and search as
+  books; the sidebar lists each magazine, its issues newest first. Collections
+  can hold both
 - 🔄 **Looks after itself** - runs as a background service; every book that
   lands in the folder gets a cover, metadata, subject tags and its full text
   (OCR for scans) without being asked. Cards flag what is still pending
@@ -129,6 +133,7 @@ npm install
 ```bash
 cp .env.example .env
 # then set BOOKS_FOLDER=/path/to/your/Books
+# and, optionally, MAGAZINES_FOLDER=/path/to/your/Magazines
 ```
 `.env.example` documents every other setting (port, database, OCR, Ollama
 models, batch sizes).
@@ -194,7 +199,7 @@ launchctl kickstart -k gui/$(id -u)/com.khodjayevb.bibliotheka   # server change
 The server listens on 127.0.0.1 only; set `HOST=0.0.0.0` in `.env` to reach it
 from other devices. Only the app's own pages (this port, and Vite on 5173) may
 call the API — other websites get a 403 — and `/pdf` serves only `.pdf` and
-`.epub` files inside `BOOKS_FOLDER`.
+`.epub` files inside `BOOKS_FOLDER` or `MAGAZINES_FOLDER`.
 
 ## Testing against a copy of your library
 
@@ -307,9 +312,9 @@ opens the database `DATABASE_PATH` selects, so try them on a copy first.
 - Duplicate detection and merging system
 - Language-based filtering
 
-Phases 6-10 and 13-17 (collections, dark mode, full-text search and OCR,
-the reader, semantic search, summaries, local AI, always on, library chat)
-are recorded in
+Phases 6-10 and 13-18 (collections, dark mode, full-text search and OCR,
+the reader, semantic search, summaries, local AI, always on, library chat,
+magazines) are recorded in
 [DEVELOPMENT_PLAN.md](./DEVELOPMENT_PLAN.md).
 
 ### Next Steps
